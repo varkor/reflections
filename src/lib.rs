@@ -547,11 +547,11 @@ fn approximate_reflection_adaptive_rtree_lines(
     let range = interval.start..=interval.end;
     let samples = ((interval.end - interval.start) / interval.step) as u64 + 1;
 
-    for t in (Interval { start: -128.0, end: 128.0, step: 1.0 }).iter() {
+    for t in (Interval { start: -256.0, end: 256.0, step: 1.0 }).iter() {
         let normal = mirror.normal(t);
         let mut norm = vec![];
         // should be able to reduce sampling significantly here (only when linear)
-        let samps: Vec<((f64, f64), (f64, f64))> = (Interval { start: -128.0, end: 128.0, step: 256.0 }).iter().map(|s| {
+        let samps: Vec<((f64, f64), (f64, f64))> = (Interval { start: -256.0, end: 256.0, step: 512.0 }).iter().map(|s| {
             ((normal.function)(s), (normal.function)(-s))
         }).collect();
         for ((x, y), _) in &samps {
@@ -584,7 +584,7 @@ fn approximate_reflection_adaptive_rtree_lines(
         &range,
         samples,
     );
-    let interval_sample = figure.sample(&(Interval { start: -128.0, end: 128.0, step: 1.0 }));
+    let interval_sample = figure.sample(&(Interval { start: -256.0, end: 256.0, step: 1.0 }));
 
     let threshold = thresh.sqrt();
 
@@ -707,17 +707,17 @@ fn construct_equation(string_x: String, string_y: String) -> Result<Equation, ()
 }
 
 #[wasm_bindgen]
-pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: String, method: String, norms: bool, thresh: f64) -> String {
-    let mirror = Equation {
-        function: Box::new(|t| {
-            let tx = t / 10.0;
-            (t, tx * tx)
-        })
-    };
+pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: String, mirror_x: String, mirror_y: String, method: String, norms: bool, thresh: f64) -> String {
     let figure = if let Ok(figure) = construct_equation(figure_x.clone(), figure_y.clone()) {
         figure
     } else {
         log(&format!("error parsing figure {:?}", (figure_x, figure_y)));
+        return String::new();
+    };
+    let mirror = if let Ok(mirror) = construct_equation(mirror_x.clone(), mirror_y.clone()) {
+        mirror
+    } else {
+        log(&format!("error parsing mirror {:?}", (mirror_x, mirror_y)));
         return String::new();
     };
 
@@ -737,7 +737,7 @@ pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: Strin
         "visual" => approximate_reflection_vis(&mirror, &figure, &interval, &view, thresh),
         "kd" => approximate_reflection_kd(&mirror, &figure, &interval, &view, thresh),
         "lines" => approximate_reflection_adaptive_rtree_lines(&mirror, &figure, &interval, &view, thresh),
-        "quads" =>  approximate_reflection_adaptive_rtree_quads(&mirror, &figure, &interval, &view, thresh),
+        "quads" => approximate_reflection_adaptive_rtree_quads(&mirror, &figure, &interval, &view, thresh),
         _ => panic!("unknown rendering method"),
     };
 

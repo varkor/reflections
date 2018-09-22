@@ -12,15 +12,20 @@ canvas {
 	transform: translate(-50%, -50%);
 }
 
-input, button {
+input[type="text"], button {
 	display: block;
+}
+
+span {
+	color: hsl(0, 0%, 90%);
+	font: 12pt sans-serif;
 }
 
 input[type="text"] {
 	background: hsl(0, 0%, 14%);
 	font-size: 20pt;
 	color: hsl(0, 0%, 90%);
-	border: hsl(190, 100%, 50%) 2px solid;
+	border: hsl(190, 0%, 50%) 2px solid;
 	border-radius: 4px;
 	padding: 2pt 4pt;
 	outline: none;
@@ -30,11 +35,32 @@ input[type="text"] {
 	margin-bottom: 4px;
 }
 
-input[type="text"]:focus {
+input[type="text"].figure {
+	border: hsl(190, 100%, 50%) 2px solid;
+}
+
+input[type="text"].figure:focus {
 	background: hsl(190, 100%, 50%);
 	color: hsl(0, 0%, 14%);
 }
 
-input[type="text"]:focus::selection {
+input[type="text"].figure:focus::selection {
 	background-color: hsl(190, 100%, 30%);
+}
+
+input[type="text"].mirror {
+	border: hsl(0, 100%, 50%) 2px solid;
+}
+
+input[type="text"].mirror:focus {
+	background: hsl(0, 100%, 50%);
+	color: hsl(0, 0%, 14%);
+}
+
+input[type="text"].mirror:focus::selection {
+	background-color: hsl(0, 100%, 30%);
+}
+
+.hidden {
+	display: none !important;
 }

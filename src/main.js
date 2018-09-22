@@ -68,9 +68,9 @@ class Rust {
         return equation;
     }
 
-    static compute_reflection(eqs, view, method, norms, thresh) {
+    static compute_reflection(fig_eqs, mirr_eqs, view, method, norms, thresh) {
         // console.log(canvas);
-        const json = window.wasm_bindgen.proof_of_concept(view.x, view.y, eqs[0], eqs[1], method, norms, thresh);
+        const json = window.wasm_bindgen.proof_of_concept(view.x, view.y, fig_eqs[0], fig_eqs[1], mirr_eqs[0], mirr_eqs[1], method, norms, thresh);
         performance.mark("wasm-bindgen-call");
         try {
             const data = JSON.parse(json);
@@ -116,15 +116,19 @@ document.addEventListener("DOMContentLoaded", () => {
         return input;
     }
 
-    function create_equation_input(action) {
+    function create_equation_input(action, class_name) {
         const x = create_input(action);
         const y = create_input(action);
+        x.classList.add(class_name);
+        y.classList.add(class_name);
         return [x, y];
     }
 
     // (x/1200)*t^2
-    let [figure_equation_x, figure_equation_y, x_value] = location.hash !== "" ? location.hash.slice(1).split(",") : ["t", "x", 0];
+    let [figure_equation_x, figure_equation_y, mirror_equation_x, mirror_equation_y, bindings] = location.hash !== "" ? location.hash.slice(1).split(",") : ["t", "x", "t", "10", "x:0"];
+    bindings = new Map(bindings.split(";").map(binding => binding.split(":")));
     let figure_equation = [figure_equation_x, figure_equation_y];
+    let mirror_equation = [mirror_equation_x, mirror_equation_y];
     let thresh = 0;
     let method = "quads";
     let norms = false;
@@ -188,9 +192,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
         render = () => {
             // console.log("render");
-            const eq_x = Rust.substitute(figure_equation[0], new Map([["x", x_value]]));
-            const eq_y = Rust.substitute(figure_equation[1], new Map([["x", x_value]]));
-            location.hash = figure_equation[0] + "," + figure_equation[1] + "," + x_value;
+            const fig_eq_x = Rust.substitute(figure_equation[0], bindings);
+            const fig_eq_y = Rust.substitute(figure_equation[1], bindings);
+            const mirr_eq_x = Rust.substitute(mirror_equation[0], bindings);
+            const mirr_eq_y = Rust.substitute(mirror_equation[1], bindings);
+            console.log(bindings);
+            location.hash = figure_equation[0] + "," + figure_equation[1] + "," + mirror_equation[0] + "," + mirror_equation[1] + "," + Array.from(bindings).map(binding => binding.join(":")).join(";");
 
             let [dx, dy] = [0, 0];
             if (pointer.held !== null) {
@@ -214,7 +221,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 recompute = false;
 
                 performance.mark("render-start");
-                Rust.compute_reflection([eq_x, eq_y], view, method, norms, thresh).then((data) => {
+                Rust.compute_reflection([fig_eq_x, fig_eq_y], [mirr_eq_x, mirr_eq_y], view, method, norms, thresh).then((data) => {
                     old_data = data;
                     let [mirror, normals, figure, reflection] = data;
 
@@ -256,13 +263,81 @@ document.addEventListener("DOMContentLoaded", () => {
         window.requestAnimationFrame(render);
     });
 
-    // const mirror = create_equation_input("mirror");
+    const fig_text = document.createElement("span");
+    fig_text.appendChild(document.createTextNode("Reflect the figure:"));
+    document.body.appendChild(fig_text);
+
+    const var_sliders = [];
+    const var_container = document.createElement("div");
+
+    function add_var_slider(v) {
+        const container = document.createElement("div");
+        const var_text = document.createElement("span");
+        var_text.appendChild(document.createTextNode(`${v}:`));
+        container.appendChild(var_text);
+        const slider = document.createElement("input");
+        slider.type = "range";
+        slider.min = -100;
+        slider.max = 100;
+        if (!bindings.has(v)) {
+            bindings.set(v, "0");
+        }
+        slider.value = bindings.get(v);
+        slider.addEventListener("input", () => {
+            bindings.set(v, slider.value);
+            recompute = true;
+            window.requestAnimationFrame(render);
+        });
+        var_sliders.push({
+            var: v,
+            element: slider,
+        });
+        container.appendChild(slider);
+        var_container.appendChild(container);
+    }
+
+    function extract_variables() {
+        const extract = eq => {
+            console.log("extract", eq, eq.match(/\b[a-z]\b/g));
+            return new Set(eq.match(/\b[a-z]\b/g));
+        };
+        const vars = new Set();
+        [figure[0], figure[1], mirror[0], mirror[1]].map(eq => [...extract(eq.value)].forEach(x => vars.add(x)));
+        console.log("vars", vars);
+        vars.delete("t"); // special parameter
+        for (const slider of var_sliders) {
+            slider.element.parentElement.classList.toggle("hidden", !vars.has(slider.var));
+            vars.delete(slider.var);
+        }
+        for (const new_var of vars) {
+            add_var_slider(new_var);
+        }
+        return vars;
+    }
+
     const figure = create_equation_input(() => {
         figure_equation = [figure[0].value, figure[1].value];
+        extract_variables();
         recompute = true;
         window.requestAnimationFrame(render);
-    });
+    }, "figure");
     [figure[0].value, figure[1].value] = figure_equation;
+
+    const mirr_text = document.createElement("span");
+    mirr_text.appendChild(document.createTextNode("in the mirror:"));
+    document.body.appendChild(mirr_text);
+
+    const mirror = create_equation_input(() => {
+        mirror_equation = [mirror[0].value, mirror[1].value];
+        extract_variables();
+        recompute = true;
+        window.requestAnimationFrame(render);
+    }, "mirror");
+    [mirror[0].value, mirror[1].value] = mirror_equation;
+
+    document.body.appendChild(var_container);
+
+    extract_variables();
 
     function method_button(name) {
         const button = document.createElement("button");
@@ -279,6 +354,10 @@ document.addEventListener("DOMContentLoaded", () => {
     method_button("lines");
     method_button("quads");
 
+    const norms_text = document.createElement("span");
+    norms_text.appendChild(document.createTextNode("draw normals:"));
+    document.body.appendChild(norms_text);
+
     const draw_normals = document.createElement("input");
     draw_normals.type = "checkbox";
     draw_normals.checked = norms;
@@ -288,18 +367,6 @@ document.addEventListener("DOMContentLoaded", () => {
         window.requestAnimationFrame(render);
     });
     document.body.appendChild(draw_normals);
-
-    const offset_slider = document.createElement("input");
-    offset_slider.type = "range";
-    offset_slider.min = -100;
-    offset_slider.max = 100;
-    offset_slider.value = x_value;
-    offset_slider.addEventListener("input", () => {
-        x_value = offset_slider.value;
-        recompute = true;
-        window.requestAnimationFrame(render);
-    });
-    document.body.appendChild(offset_slider);
 
     const thresh_slider = document.createElement("input");
     thresh_slider.type = "range";
