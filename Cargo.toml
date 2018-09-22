@@ -1,0 +1,17 @@
+[package]
+name = "reflections"
+version = "0.1.0"
+authors = ["varkor <github@varkor.com>"]
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+wasm-bindgen = "0.2.21"
+serde_json = "1.0"
+kdtree = "0.5.1"
+spade = "1.4.0"
+
+[patch.crates-io]
+# spade = { git = "https://github.com/varkor/spade.git", branch = "ext" }
+spade = { path = "/Users/Nathanael/GitHub/spade" }
