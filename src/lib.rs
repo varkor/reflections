@@ -151,23 +151,13 @@ impl View {
     }
 }
 
-type Line = ((f64, f64), (f64, f64));
-fn point_to_line(x: f64, y: f64) -> Line {
-    ((x, y), (x, y))
-}
-
-// type Line = (f64, f64);
-// fn point_to_line(x: f64, y: f64) -> Line {
-//     (x, y)
-// }
-
 fn approximate_reflection_vis(
     mirror: &Equation,
     figure: &Equation,
     interval: &Interval,
     view: &View,
     thresh: f64,
-) -> (Vec<Line>, Vec<Vec<(f64, f64)>>) {
+) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
     let mut grid = vec![vec![]; (view.cols as usize) * (view.rows as usize)];
     let mut norms = vec![];
     // Generate the normal mappings.
@@ -193,7 +183,7 @@ fn approximate_reflection_vis(
             }
         }
     }
-    (reflection.iter().map(|(x, y)| point_to_line(f64::from_bits(*x), f64::from_bits(*y))).collect(), norms)
+    (reflection.iter().map(|(x, y)| (f64::from_bits(*x), f64::from_bits(*y))).collect(), norms)
 }
 
 fn approximate_reflection_kd(
@@ -202,7 +192,7 @@ fn approximate_reflection_kd(
     interval: &Interval,
     _view: &View,
     thresh: f64,
-) -> (Vec<Line>, Vec<Vec<(f64, f64)>>) {
+) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
     let mut pairs = vec![];
     let mut norms = vec![];
 
@@ -237,7 +227,7 @@ fn approximate_reflection_kd(
         }
     }
 
-    (reflection.iter().map(|(x, y)| point_to_line(f64::from_bits(*x), f64::from_bits(*y))).collect(), norms)
+    (reflection.iter().map(|(x, y)| (f64::from_bits(*x), f64::from_bits(*y))).collect(), norms)
 }
 
 #[derive(Clone, Copy)]
@@ -366,7 +356,7 @@ fn approximate_reflection_adaptive_rtree_quads(
     interval: &Interval,
     _view: &View,
     thresh: f64,
-) -> (Vec<Line>, Vec<Vec<(f64, f64)>>) {
+) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
     let mut pairs = vec![];
     let norms = vec![];
 
@@ -468,7 +458,7 @@ fn approximate_reflection_adaptive_rtree_quads(
                     quad.diam = [1, 2, 3].iter().map(|&i: &usize| OrdFloat(quad.points[0].sub(&quad.points[i]).length2())).max().unwrap().0.sqrt();
                     pairs.push(SpatialObjectWithPayload(
                         quad,
-                        ((s11.1, s11.2), (s12.1, s12.2), (s22.1, s22.2), (s21.1, s21.2)),
+                        (s11.1, s12.1, s22.1, s21.1),
                     ));
                 }
             }
@@ -502,11 +492,11 @@ fn approximate_reflection_adaptive_rtree_quads(
     // let fs = figure_sample;
     let fs = interval_sample;
 
-    let mut rpoints = vec![];
-
     for (x, y) in fs {
         let p = &[x, y];
         for SpatialObjectWithPayload(quad, (v1, v2, v3, v4)) in rtree.lookup_in_circle(p, &threshold) {
+
+
             let a = projection_on_edge(&quad.edges[0], p) / quad.edges[0].length2();
             let a_dis = quad.edges[0].distance2(p);
             let b = 1.0 - projection_on_edge(&quad.edges[2], p) / quad.edges[2].length2();
@@ -514,42 +504,34 @@ fn approximate_reflection_adaptive_rtree_quads(
             let total_dis = a_dis + b_dis;
             let a_factor = 1.0 - a_dis / total_dis;
             let b_factor = 1.0 - b_dis / total_dis;
-            let (adx, ady, adt, ads) = ((v2.0).0 - (v1.0).0, (v2.0).1 - (v1.0).1, (v2.1).0 - (v1.1).0, (v2.1).1 - (v1.1).1);
-            let (ax, ay, at, as_) = ((v1.0).0 + adx * a, (v1.0).1 + ady * a, (v1.1).0 + adt * a, (v1.1).1 + ads * a);
-            let (bdx, bdy, bdt, bds) = ((v3.0).0 - (v4.0).0, (v3.0).1 - (v4.0).1, (v3.1).0 - (v4.1).0, (v3.1).1 - (v4.1).1);
-            let (bx, by, bt, bs) = ((v4.0).0 + bdx * b, (v4.0).1 + bdy * b, (v4.1).0 + bdt * b, (v4.1).1 + bds * b);
-            let (x, y, t, s) = (a_factor * ax + b_factor * bx, a_factor * ay + b_factor * by,
-                                a_factor * at + b_factor * bt, a_factor * as_ + b_factor * bs);
-            rpoints.push([x, y, t, s]);
+            let (adx, ady) = (v2.0 - v1.0, v2.1 - v1.1);
+            let (ax, ay) = (v1.0 + adx * a, v1.1 + ady * a);
+            let (bdx, bdy) = (v3.0 - v4.0, v3.1 - v4.1);
+            let (bx, by) = (v4.0 + bdx * b, v4.1 + bdy * b);
+            let (x, y) = (a_factor * ax + b_factor * bx, a_factor * ay + b_factor * by);
+            reflection.insert((x.to_bits(), y.to_bits()));
+
+            // fn calc(p: &[f64; 2], q: &[f64; 2]) -> f64 {
+            //     (quad.diam - p.sub(&q).length2().sqrt()) / quad.diam
+            // }
+            // // find distance of point to each of four vertices
+            // let dis_s11 = calc(p, &quad.points[0]);
+            // let dis_s12 = calc(p, &quad.points[1]);
+            // let dis_s22 = calc(p, &quad.points[2]);
+            // let dis_s21 = calc(p, &quad.points[3]);
+            // let dis_sum = (dis_s11 + dis_s12 + dis_s22 + dis_s21) / (4 * quad.diam);
+            // // make a weighted average of vs
+            // // let weight = [
+            // //     (v1.0 * dis_s11 + v2.0 * dis_s12 + v3.0 * dis_s22 + v4.0 * dis_s21) / dis_sum,
+            // //     (v1.1 * dis_s11 + v2.1 * dis_s12 + v3.1 * dis_s22 + v4.1 * dis_s21) / dis_sum,
+            // // ];
+            // let weight = [(v1.0 + v2.0 + v3.0 + v4.0) / 4.0, (v1.1 + v2.1 + v3.1 + v4.1) / 4.0];
+            // let [x, y] = weight;
+            // reflection.insert((x.to_bits(), y.to_bits()));
         }
     }
 
-    let mut rtree_join = RTree::new();
-    for p in rpoints.into_iter() {
-        rtree_join.insert(p);
-    }
-    let mut it = rtree_join.iter();
-    let mut visited = HashSet::new();
-
-    while let Some(point) = it.next() {
-        visited.insert((point[0].to_bits(), point[1].to_bits(), point[2].to_bits(), point[3].to_bits()));
-        let mut others = 0;
-        for other in rtree_join.lookup_in_circle(point, &32.0) {
-            others += 1;
-            if !visited.contains(&(other[0].to_bits(), other[1].to_bits(), other[2].to_bits(), other[3].to_bits())) {
-                reflection.insert(((point[0].to_bits(), point[1].to_bits()), (other[0].to_bits(), other[1].to_bits())));
-                break;
-            }
-        }
-        if others == 0 {
-            reflection.insert(((point[0].to_bits(), point[1].to_bits()), (point[0].to_bits(), point[1].to_bits())));
-        }
-    }
-
-    (reflection.iter().map(|((x1, y1), (x2, y2))| {
-        ((f64::from_bits(*x1), f64::from_bits(*y1)),
-         (f64::from_bits(*x2), f64::from_bits(*y2)))
-    }).collect(), norms)
+    (reflection.iter().map(|(x, y)| (f64::from_bits(*x), f64::from_bits(*y))).collect(), norms)
 }
 
 fn approximate_reflection_adaptive_rtree_lines(
@@ -558,7 +540,7 @@ fn approximate_reflection_adaptive_rtree_lines(
     interval: &Interval,
     _view: &View,
     thresh: f64,
-) -> (Vec<Line>, Vec<Vec<(f64, f64)>>) {
+) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
     let mut pairs = vec![];
     let mut norms = vec![];
 
@@ -631,7 +613,7 @@ fn approximate_reflection_adaptive_rtree_lines(
         }
     }
 
-    (reflection.iter().map(|(x, y)| point_to_line(f64::from_bits(*x), f64::from_bits(*y))).collect(), norms)
+    (reflection.iter().map(|(x, y)| (f64::from_bits(*x), f64::from_bits(*y))).collect(), norms)
 }
 
 fn approximate_reflection_adaptive(
@@ -640,7 +622,7 @@ fn approximate_reflection_adaptive(
     interval: &Interval,
     _view: &View,
     thresh: f64,
-) -> (Vec<Line>, Vec<Vec<(f64, f64)>>) {
+) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
     let mut pairs = vec![];
     let mut norms = vec![];
 
@@ -699,7 +681,7 @@ fn approximate_reflection_adaptive(
         }
     }
 
-    (reflection.iter().map(|(x, y)| point_to_line(f64::from_bits(*x), f64::from_bits(*y))).collect(), norms)
+    (reflection.iter().map(|(x, y)| (f64::from_bits(*x), f64::from_bits(*y))).collect(), norms)
 }
 
 fn construct_equation(string: String) -> Result<Equation, ()> {
@@ -755,7 +737,7 @@ pub extern fn proof_of_concept(x: f64, y: f64, figure: String, method: String, n
         "visual" => approximate_reflection_vis(&mirror, &figure, &interval, &view, thresh),
         "kd" => approximate_reflection_kd(&mirror, &figure, &interval, &view, thresh),
         "lines" => approximate_reflection_adaptive_rtree_lines(&mirror, &figure, &interval, &view, thresh),
-        "quads" => approximate_reflection_adaptive_rtree_quads(&mirror, &figure, &interval, &view, thresh),
+        "quads" =>  approximate_reflection_adaptive_rtree_quads(&mirror, &figure, &interval, &view, thresh),
         _ => panic!("unknown rendering method"),
     };
 
