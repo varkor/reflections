@@ -46,6 +46,33 @@ class Canvas {
         this.context.fill(vertices);
     }
 
+    plot_lines(view, lines) {
+        const dpr = window.devicePixelRatio;
+        const width = 2;
+        const vertices = new Path2D();
+        const path = new Path2D();
+        this.context.beginPath();
+        for (const line of lines) {
+            const [[px1, py1], [px2, py2]] = line;
+            const [x1, y1] = [px1 + view.width / 2 - view.x, py1 + view.height / 2 - view.y];
+            const [x2, y2] = [px2 + view.width / 2 - view.x, py2 + view.height / 2 - view.y];
+            if (px1 !== px2 || py1 !== py2) {
+                path.moveTo(x1 * dpr, y1 * dpr);
+                path.lineTo(x2 * dpr, y2 * dpr);
+                vertices.moveTo(x1 * dpr, y1 * dpr);
+                vertices.arc(x1 * dpr, y1 * dpr, width / 2 * dpr, 0, 2 * Math.PI);
+            }
+            vertices.moveTo(x2 * dpr, y2 * dpr);
+            vertices.arc(x2 * dpr, y2 * dpr, width / 2 * dpr, 0, 2 * Math.PI);
+        }
+
+        this.context.save();
+        this.context.lineWidth = width * dpr;
+        this.context.stroke(path);
+        this.context.restore();
+        this.context.fill(vertices);
+    }
+
     plot_equation(view, points) {
         this.plot_points(view, points, true);
     }
@@ -88,7 +115,7 @@ class Rust {
         canvas.context.fillStyle = canvas.context.strokeStyle = "red";
         canvas.plot_equation(view, mirror);
         canvas.context.fillStyle = canvas.context.strokeStyle = "purple";
-        canvas.plot_points(view, reflection);
+        canvas.plot_lines(view, reflection);
         performance.mark("wasm-bindgen-plot");
     }
 
