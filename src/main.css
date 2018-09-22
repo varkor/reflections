@@ -1,0 +1,237 @@
+* {
+    box-sizing: border-box;
+}
+
+:root {
+	--mirror-hue: 0;
+	--figure-hue: 190;
+	--reflection-hue: 280;
+
+	--ui-hue: 200;
+	--ui-secondary-hue: 270;
+
+	--mirror-colour: hsl(var(--mirror-hue), 100%, 50%);
+	--figure-colour: hsl(var(--figure-hue), 100%, 50%);
+	--reflection-colour: hsl(var(--reflection-hue), 100%, 50%);
+}
+
+body {
+	margin: 0;
+
+	background: hsl(0, 0%, 10%);
+
+	font-family: "Helvetica Neue";
+}
+
+main {
+	display: block;
+	position: relative;
+	width: 100%; height: 100%;
+}
+
+canvas {
+	left: 50%;
+	position: relative;
+	transform: translateX(-50%);
+}
+
+button {
+	display: block;
+}
+
+input[type="text"] {
+	margin-bottom: 4px;
+	padding: 2pt 4pt;
+	vertical-align: middle;
+
+	background: hsl(0, 0%, 14%);
+	border-radius: 4px;
+	border: hsl(0, 0%, 50%) 2px solid;
+	outline: none;
+
+	color: hsl(0, 0%, 90%);
+	font-size: 12pt;
+	text-align: center;
+}
+
+input[type="text"].figure {
+	border: var(--figure-colour) 2px solid;
+}
+
+input[type="text"].figure:focus {
+	background: var(--figure-colour);
+
+	color: hsl(0, 0%, 14%);
+}
+
+input[type="text"].figure:focus::selection {
+	background: hsl(var(--figure-hue), 100%, 30%);
+}
+
+input[type="text"].mirror {
+	border: var(--mirror-colour) 2px solid;
+}
+
+input[type="text"].mirror:focus {
+	background: var(--mirror-colour);
+
+	color: hsl(0, 0%, 14%);
+}
+
+input[type="text"].mirror:focus::selection {
+	background: hsl(var(--mirror-hue), 100%, 30%);
+}
+
+.hidden {
+	display: none !important;
+}
+
+header {
+	padding: 2pt 4pt;
+
+	background: hsl(var(--ui-hue), 100%, 50%);
+
+	font: 300 16pt "Helvetica Neue";
+}
+
+.parametric-equation {
+	display: inline-block;
+}
+
+.parametric-equation, .parametric-equation > .divider {
+	font: 18pt "Helvetica Neue";
+}
+
+.parametric-equation::before {
+	content: "(";
+	padding-right: 4pt;
+}
+
+.parametric-equation::after {
+	content: ")";
+	padding-left: 4pt;
+}
+
+.parametric-equation > .divider::after {
+	content: ",";
+	padding: 0 4pt;
+}
+
+.options {
+	margin-bottom: 8pt;
+	min-height: 74pt;
+	padding: 6pt 8pt;
+
+	background: hsl(0, 0%, 16%);
+
+	color: hsl(0, 0%, 90%);
+	font: 300 12pt "Helvetica Neue";
+}
+
+label {
+	padding-right: 4pt;
+}
+
+label:first-child {
+	padding-left: 0;
+}
+
+/* This doesn't apply when there are children, but they're all `display: hidden;`, so we also
+   make sure `.variables` is also `.hidden` in this case. */
+.variables:empty {
+	padding: 0;
+}
+
+.variables {
+	background: hsl(0, 0%, 30%);
+	border-radius: 4px;
+	display: inline-block;
+	margin-top: 4pt;
+	padding: 2pt 4pt;
+}
+
+.variable {
+	color: hsl(0, 0%, 90%);
+}
+
+.variable {
+	padding: 2pt 4pt;
+}
+
+.variable .value {
+	display: inline-block;
+	margin-right: 4pt;
+	min-width: 26pt;
+
+	text-align: right;
+}
+
+.dev-options {
+	float: right;
+
+	text-align: right;
+}
+
+input[type=range] {
+	-webkit-appearance: none;
+	background: transparent;
+}
+
+input[type=range]:focus {
+	outline: none;
+}
+
+input::-webkit-slider-runnable-track {
+	height: 1em;
+
+	background: hsl(var(--ui-hue), 100%, 50%);
+	border-radius: 1em;
+}
+
+input[type=range]::-webkit-slider-thumb {
+	width: 1.5em; height: 1.5em;
+	margin-top: -0.25em;
+
+	-webkit-appearance: none;
+	background: hsl(var(--ui-hue), 100%, 35%);
+	border-radius: 100%;
+	box-shadow: hsla(0, 0%, 0%, 0.1) 0 2px 2px;
+}
+
+input.key::-webkit-slider-runnable-track {
+	background: hsl(var(--ui-secondary-hue), 100%, 65%);
+}
+
+input[type=range].key::-webkit-slider-thumb {
+	background: hsl(var(--ui-secondary-hue), 100%, 50%);
+}
+
+input[type=checkbox]:focus {
+	outline: none;
+}
+
+input[type=checkbox] {
+	width: 1.5em; height: 1.5em;
+	vertical-align: middle;
+
+	-webkit-appearance: none;
+	background: transparent;
+	border-radius: 4px;
+	border: hsl(var(--ui-hue), 100%, 50%) 2px solid;
+}
+
+input[type=checkbox]:checked {
+	background: hsl(var(--ui-hue), 100%, 50%);
+}
+input[type=checkbox]:checked::before {
+	content: "✓";
+	display: block;
+	position: relative;
+
+	color: hsl(0, 0%, 10%);
+	text-align: center;
+}
+
+.inline {
+	display: inline-block;
+}
