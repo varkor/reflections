@@ -431,9 +431,9 @@ fn approximate_reflection_adaptive_rtree_quads(
         }
     }
 
-    let samps1: Vec<_> = (Interval { start: -128.0, end: 128.0, step: 1.0 }).iter().map(|t| {
+    let samps1: Vec<_> = (Interval { start: -256.0, end: 256.0, step: 1.0 }).iter().map(|t| {
         let normal = mirror.normal(t);
-        let samps: Vec<((f64, f64), (f64, f64), (f64, f64))> = (Interval { start: -128.0, end: 128.0, step: 256.0 }).iter().map(|s| {
+        let samps: Vec<((f64, f64), (f64, f64), (f64, f64))> = (Interval { start: -256.0, end: 256.0, step: 512.0 }).iter().map(|s| {
             ((normal.function)(s), (normal.function)(-s), (t, s))
         }).collect();
         samps
@@ -476,9 +476,9 @@ fn approximate_reflection_adaptive_rtree_quads(
             KeyValue(Point2D(x, y), (x, y))
         },
         &range,
-        samples,
+        samples * 2,
     );
-    let interval_sample = figure.sample(&(Interval { start: -128.0, end: 128.0, step: 1.0 }));
+    let interval_sample = figure.sample(&(Interval { start: -256.0, end: 256.0, step: 0.5 }));
 
     let threshold = thresh.sqrt();
 
@@ -684,47 +684,47 @@ fn approximate_reflection_adaptive(
     (reflection.iter().map(|(x, y)| (f64::from_bits(*x), f64::from_bits(*y))).collect(), norms)
 }
 
-fn construct_equation(string: String) -> Result<Equation, ()> {
+fn parse_equation(string: String) -> Result<parser::Expr, ()> {
     if let Ok(lexemes) = Lexer::scan(string.chars().collect()) {
         let tokens = Lexer::evaluate(lexemes);
-        // log(&format!("tokens {:?}", tokens));
         let mut parser = Parser::new(tokens);
-        if let Ok(node) = parser.parse_equation() {
-            // log(&format!("node {:?}\n{}", node, node));
-            Ok(Equation {
-                function: Box::new(move |t| {
-                    let mut bindings = HashMap::new();
-                    bindings.insert('t', t);
-                    (t, node.evaluate(&bindings))
-                }),
-            })
-        } else {
-            Err(())
-        }
+        parser.parse_equation()
     } else {
         Err(())
     }
 }
 
+fn construct_equation(string_x: String, string_y: String) -> Result<Equation, ()> {
+    let expr_x = parse_equation(string_x)?;
+    let expr_y = parse_equation(string_y)?;
+    Ok(Equation {
+        function: Box::new(move |t| {
+            let mut bindings = HashMap::new();
+            bindings.insert('t', t);
+            (expr_x.evaluate(&bindings), expr_y.evaluate(&bindings))
+        }),
+    })
+}
+
 #[wasm_bindgen]
-pub extern fn proof_of_concept(x: f64, y: f64, figure: String, method: String, norms: bool, thresh: f64) -> String {
+pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: String, method: String, norms: bool, thresh: f64) -> String {
     let mirror = Equation {
         function: Box::new(|t| {
             let tx = t / 10.0;
             (t, tx * tx)
         })
     };
-    let figure = if let Ok(figure) = construct_equation(figure.clone()) {
+    let figure = if let Ok(figure) = construct_equation(figure_x.clone(), figure_y.clone()) {
         figure
     } else {
-        log(&format!("error parsing figure {:?}", figure));
+        log(&format!("error parsing figure {:?}", (figure_x, figure_y)));
         return String::new();
     };
 
-    let interval = Interval { start: -128.0, end: 128.0, step: 1.0 };
+    let interval = Interval { start: -256.0, end: 256.0, step: 0.5 };
     let width = 640.0;
     let height = 480.0;
-    let pixels_per_cell = 4.0;
+    let pixels_per_cell = thresh / 10.0;
     let view = View {
         cols: (width / pixels_per_cell) as u16,
         rows: (height / pixels_per_cell) as u16,

@@ -26,6 +26,10 @@ input[type="text"] {
 	outline: none;
 }
 
+input[type="text"] {
+	margin-bottom: 4px;
+}
+
 input[type="text"]:focus {
 	background: hsl(190, 100%, 50%);
 	color: hsl(0, 0%, 14%);

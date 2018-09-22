@@ -68,9 +68,9 @@ class Rust {
         return equation;
     }
 
-    static compute_reflection(canvas, view, method, norms, thresh) {
+    static compute_reflection(eqs, view, method, norms, thresh) {
         // console.log(canvas);
-        const json = window.wasm_bindgen.proof_of_concept(view.x, view.y, canvas, method, norms, thresh);
+        const json = window.wasm_bindgen.proof_of_concept(view.x, view.y, eqs[0], eqs[1], method, norms, thresh);
         performance.mark("wasm-bindgen-call");
         try {
             const data = JSON.parse(json);
@@ -108,18 +108,24 @@ class Rust {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    function create_equation_input(placeholder, action) {
+    function create_input(action) {
         const input = document.createElement("input");
         input.type = "text";
-        input.placeholder = placeholder;
         input.addEventListener("input", action);
         document.body.appendChild(input);
         return input;
     }
 
+    function create_equation_input(action) {
+        const x = create_input(action);
+        const y = create_input(action);
+        return [x, y];
+    }
+
     // (x/1200)*t^2
-    let [figure_equation, x_value] = location.hash !== "" ? location.hash.slice(1).split(",") : ["x", 0];
-    let thresh = 2.0;
+    let [figure_equation_x, figure_equation_y, x_value] = location.hash !== "" ? location.hash.slice(1).split(",") : ["t", "x", 0];
+    let figure_equation = [figure_equation_x, figure_equation_y];
+    let thresh = 0;
     let method = "quads";
     let norms = false;
     let recompute = false;
@@ -182,8 +188,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
         render = () => {
             // console.log("render");
-            const eq = Rust.substitute(figure_equation, new Map([["x", x_value]]));
-            location.hash = figure_equation + "," + x_value;
+            const eq_x = Rust.substitute(figure_equation[0], new Map([["x", x_value]]));
+            const eq_y = Rust.substitute(figure_equation[1], new Map([["x", x_value]]));
+            location.hash = figure_equation[0] + "," + figure_equation[1] + "," + x_value;
 
             let [dx, dy] = [0, 0];
             if (pointer.held !== null) {
@@ -207,7 +214,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 recompute = false;
 
                 performance.mark("render-start");
-                Rust.compute_reflection(eq, view, method, norms, thresh).then((data) => {
+                Rust.compute_reflection([eq_x, eq_y], view, method, norms, thresh).then((data) => {
                     old_data = data;
                     let [mirror, normals, figure, reflection] = data;
 
@@ -250,12 +257,12 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // const mirror = create_equation_input("mirror");
-    const figure = create_equation_input("figure", () => {
-        figure_equation = figure.value;
+    const figure = create_equation_input(() => {
+        figure_equation = [figure[0].value, figure[1].value];
         recompute = true;
         window.requestAnimationFrame(render);
     });
-    figure.value = figure_equation;
+    [figure[0].value, figure[1].value] = figure_equation;
 
     function method_button(name) {
         const button = document.createElement("button");

@@ -12,11 +12,11 @@ macro_rules! try_block {
     )
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Token {
     End,
     Number(f64),
-    Variable(char),
+    Name(String),
     OpenParen,
     CloseParen,
     Add,
@@ -46,7 +46,7 @@ impl Token {
         vec![
             // `End` is deliberately not included as it is created implicitly.
             Number(0.0),
-            Variable('_'),
+            Name(String::new()),
             OpenParen,
             CloseParen,
             Add,
@@ -97,12 +97,8 @@ impl Token {
                 }) && (kind == MatchKind::Prefix || state != State::Dot)
             }
 
-            (Variable(_), s) if s.len() == 1 => {
-                if let Some(c) = s.chars().next() {
-                    c.is_ascii_alphabetic() && c.is_ascii_lowercase()
-                } else {
-                    false
-                }
+            (Name(_), s) => {
+                s.chars().all(|c| c.is_ascii_alphabetic() && c.is_ascii_lowercase())
             }
 
             _ => false,
@@ -179,10 +175,10 @@ impl Lexer {
 
         use self::Token::*;
 
-        for l in &lexemes {
+        for l in lexemes.into_iter() {
             tokens.push(match l.kind {
                 Number(_) => Number(l.string.parse().unwrap()),
-                Variable(_) => Variable(l.string.chars().next().unwrap()),
+                Name(_) => Name(l.string),
                 _ => l.kind,
             });
         }
@@ -391,7 +387,8 @@ impl<I: Iterator<Item = Token> + Clone> Parser<I> {
 
     // T ::= ( E ) | V | X
     fn parse_term(&mut self) -> ParseResult<Expr> {
-        let save = self.save();
+        let save1 = self.save();
+        let save2 = self.save();
 
         let parenthesised_expr: ParseResult<_> = try_block! {
             self.eat(Token::OpenParen)?;
@@ -401,7 +398,10 @@ impl<I: Iterator<Item = Token> + Clone> Parser<I> {
         };
 
         parenthesised_expr.or_else(|_| {
-            self.restore(save);
+            self.restore(save1);
+            self.parse_function()
+        }).or_else(|_| {
+            self.restore(save2);
             self.parse_var()
         }).or_else(|_| {
             self.parse_value()
@@ -410,12 +410,37 @@ impl<I: Iterator<Item = Token> + Clone> Parser<I> {
         })
     }
 
+    // F ::= ('a' ..= 'z')+ ( E_0 )
+    fn parse_function(&mut self) -> ParseResult<Expr> {
+        let token = self.token.clone();
+        match token {
+            Token::Name(ref n) if n.len() > 1 => {
+                self.check_function_name(n)?;
+                self.bump();
+                self.eat(Token::OpenParen)?;
+                let expr = self.parse_expr(Precedence::Additive)?;
+                self.eat(Token::CloseParen)?;
+                Ok(Expr::Function(n.clone(), box expr))
+            }
+            _ => Self::err(),
+        }
+    }
+
+    fn check_function_name(&self, name: &String) -> ParseResult<()> {
+        if ["sin", "cos", "tan"].contains(&name.as_ref()) {
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
     // V ::= 'a' ..= 'z'
     fn parse_var(&mut self) -> ParseResult<Expr> {
-        match self.token {
-            Token::Variable(v) => {
+        let token = self.token.clone();
+        match token {
+            Token::Name(ref n) if n.len() == 1 => {
                 self.bump();
-                Ok(Expr::Var(v))
+                Ok(Expr::Var(n.clone()))
             }
             _ => Self::err(),
         }
@@ -450,9 +475,10 @@ pub enum UnOp {
 #[derive(Debug)]
 pub enum Expr {
     Number(f64),
-    Var(char),
+    Var(String),
     UnOp(UnOp, Box<Expr>),
     BinOp(BinOp, Box<Expr>, Box<Expr>),
+    Function(String, Box<Expr>),
 }
 
 #[derive(Debug)]
@@ -471,7 +497,7 @@ impl Expr {
 
         match self {
             Number(x) => *x,
-            Var(v) => bindings[v],
+            Var(v) => bindings[&v.chars().next().unwrap()],
             UnOp(self::UnOp::Minus, x) => -x.evaluate(bindings),
             BinOp(op, lhs, rhs) => {
                 use self::BinOp::*;
@@ -483,6 +509,15 @@ impl Expr {
                     Mul => lhs * rhs,
                     Div => lhs / rhs,
                     Exp => lhs.powf(rhs),
+                }
+            }
+            Function(f, x) => {
+                let x = x.evaluate(bindings);
+                match f.as_ref() {
+                    "sin" => x.sin(),
+                    "cos" => x.cos(),
+                    "tan" => x.tan(),
+                    _ => panic!("unknown function {}", f),
                 }
             }
         }
@@ -508,6 +543,7 @@ impl fmt::Display for Expr {
                 write!(f, "({} {} {})", lhs, op, rhs)
             }
             Var(v) => write!(f, "{}", v),
+            Function(fun, x) => write!(f, "{}({})", fun, x),
         }
     }
 }
