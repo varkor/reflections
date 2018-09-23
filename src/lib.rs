@@ -12,6 +12,7 @@ extern crate serde_json;
 extern crate wasm_bindgen;
 extern crate kdtree;
 extern crate spade;
+extern crate console_error_panic_hook;
 
 use wasm_bindgen::prelude::*;
 use kdtree::KdTree;
@@ -433,8 +434,14 @@ fn approximate_reflection_adaptive_rtree_quads(
 
     let samps1: Vec<_> = (Interval { start: -256.0, end: 256.0, step: 1.0 }).iter().map(|t| {
         let normal = mirror.normal(t);
-        let samps: Vec<((f64, f64), (f64, f64), (f64, f64))> = (Interval { start: -256.0, end: 256.0, step: 512.0 }).iter().map(|s| {
-            ((normal.function)(s), (normal.function)(-s), (t, s))
+        let samps: Vec<((f64, f64), (f64, f64), (f64, f64))> = (Interval { start: -256.0, end: 256.0, step: 512.0 }).iter().filter_map(|s| {
+            let nfs = (normal.function)(s);
+            let nfms = (normal.function)(-s);
+            if !nfs.0.is_nan() && !nfs.1.is_nan() && !nfms.0.is_nan() && !nfms.1.is_nan() {
+                Some((nfs, nfms, (t, s)))
+            } else {
+                None
+            }
         }).collect();
         samps
     }).collect();
@@ -493,6 +500,10 @@ fn approximate_reflection_adaptive_rtree_quads(
     let fs = interval_sample;
 
     for (x, y) in fs {
+        if x.is_nan() || y.is_nan() {
+            continue;
+        }
+
         let p = &[x, y];
         for SpatialObjectWithPayload(quad, (v1, v2, v3, v4)) in rtree.lookup_in_circle(p, &threshold) {
 
@@ -708,6 +719,8 @@ fn construct_equation(string_x: String, string_y: String) -> Result<Equation, ()
 
 #[wasm_bindgen]
 pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: String, mirror_x: String, mirror_y: String, method: String, norms: bool, thresh: f64) -> String {
+    console_error_panic_hook::set_once();
+
     let figure = if let Ok(figure) = construct_equation(figure_x.clone(), figure_y.clone()) {
         figure
     } else {

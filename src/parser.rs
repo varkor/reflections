@@ -497,7 +497,13 @@ impl Expr {
 
         match self {
             Number(x) => *x,
-            Var(v) => bindings[&v.chars().next().unwrap()],
+            Var(v) => {
+                if let Some(&x) = bindings.get(&v.chars().next().unwrap()) {
+                    x
+                } else {
+                    panic!("no binding for {}", v);
+                }
+            }
             UnOp(self::UnOp::Minus, x) => -x.evaluate(bindings),
             BinOp(op, lhs, rhs) => {
                 use self::BinOp::*;

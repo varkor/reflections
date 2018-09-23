@@ -63,7 +63,7 @@ class Rust {
 
     static substitute(equation, bindings) {
         for (const [variable, value] of bindings) {
-            equation = equation.replace(new RegExp(variable, "g"), `(${value})`);
+            equation = equation.replace(new RegExp(`\\b${variable}\\b`, "g"), `(${value})`);
         }
         return equation;
     }
@@ -100,7 +100,7 @@ class Rust {
             start = end;
         }
         performance.getEntriesByType("measure").map(entry => {
-            console.log(entry.name, entry.duration);
+            console.log(entry.name, entry.duration, `${Math.round(1000 / entry.duration * 10) / 10} fps`);
         });
         performance.clearMarks();
         performance.clearMeasures();
@@ -125,7 +125,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // (x/1200)*t^2
-    let [figure_equation_x, figure_equation_y, mirror_equation_x, mirror_equation_y, bindings] = location.hash !== "" ? location.hash.slice(1).split(",") : ["t", "x", "t", "10", "x:0"];
+    let [figure_equation_x, figure_equation_y, mirror_equation_x, mirror_equation_y, bindings] = location.hash !== "" ? decodeURIComponent(location.hash).slice(1).split(",") : ["t", "x", "t", "10", "x:0"];
     bindings = new Map(bindings.split(";").map(binding => binding.split(":")));
     let figure_equation = [figure_equation_x, figure_equation_y];
     let mirror_equation = [mirror_equation_x, mirror_equation_y];
@@ -196,8 +196,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const fig_eq_y = Rust.substitute(figure_equation[1], bindings);
             const mirr_eq_x = Rust.substitute(mirror_equation[0], bindings);
             const mirr_eq_y = Rust.substitute(mirror_equation[1], bindings);
-            console.log(bindings);
-            location.hash = figure_equation[0] + "," + figure_equation[1] + "," + mirror_equation[0] + "," + mirror_equation[1] + "," + Array.from(bindings).map(binding => binding.join(":")).join(";");
+            location.hash = encodeURIComponent(figure_equation[0] + "," + figure_equation[1] + "," + mirror_equation[0] + "," + mirror_equation[1] + "," + Array.from(bindings).map(binding => binding.join(":")).join(";"));
 
             let [dx, dy] = [0, 0];
             if (pointer.held !== null) {
@@ -298,12 +297,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function extract_variables() {
         const extract = eq => {
-            console.log("extract", eq, eq.match(/\b[a-z]\b/g));
             return new Set(eq.match(/\b[a-z]\b/g));
         };
         const vars = new Set();
         [figure[0], figure[1], mirror[0], mirror[1]].map(eq => [...extract(eq.value)].forEach(x => vars.add(x)));
-        console.log("vars", vars);
         vars.delete("t"); // special parameter
         for (const slider of var_sliders) {
             slider.element.parentElement.classList.toggle("hidden", !vars.has(slider.var));
@@ -339,20 +336,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
     extract_variables();
 
-    function method_button(name) {
+    const thresh_slider = document.createElement("input");
+
+    function method_button(name, force_thresh) {
         const button = document.createElement("button");
         button.appendChild(document.createTextNode(name));
         button.addEventListener("click", () => {
             method = name;
+            thresh_slider.value = force_thresh ? "2" : "0";
+            thresh = thresh_slider.value;
             recompute = true;
             window.requestAnimationFrame(render);
         });
         document.body.appendChild(button);
     }
-    method_button("visual");
-    method_button("kd");
-    method_button("lines");
-    method_button("quads");
+    method_button("visual", true);
+    method_button("kd", true);
+    method_button("lines", true);
+    method_button("quads", false);
 
     const norms_text = document.createElement("span");
     norms_text.appendChild(document.createTextNode("draw normals:"));
@@ -368,7 +369,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     document.body.appendChild(draw_normals);
 
-    const thresh_slider = document.createElement("input");
     thresh_slider.type = "range";
     thresh_slider.min = 0.0;
     thresh_slider.max = 64.0;
