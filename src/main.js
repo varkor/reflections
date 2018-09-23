@@ -61,10 +61,11 @@ class Rust {
         });
     }
 
-    static substitute(equation, bindings) {
+    static substitute(equation, bindings, t_offset) {
         for (const [variable, value] of bindings) {
             equation = equation.replace(new RegExp(`\\b${variable}\\b`, "g"), `(${value})`);
         }
+        equation = equation.replace(/\bt\b/g, `(t-${t_offset})`);
         return equation;
     }
 
@@ -133,6 +134,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let method = "quads";
     let norms = false;
     let recompute = false;
+    let t_offset = 0;
 
     let render = () => {};
 
@@ -192,10 +194,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         render = () => {
             // console.log("render");
-            const fig_eq_x = Rust.substitute(figure_equation[0], bindings);
-            const fig_eq_y = Rust.substitute(figure_equation[1], bindings);
-            const mirr_eq_x = Rust.substitute(mirror_equation[0], bindings);
-            const mirr_eq_y = Rust.substitute(mirror_equation[1], bindings);
+            const fig_eq_x = Rust.substitute(figure_equation[0], bindings, t_offset);
+            const fig_eq_y = Rust.substitute(figure_equation[1], bindings, t_offset);
+            const mirr_eq_x = Rust.substitute(mirror_equation[0], bindings, t_offset);
+            const mirr_eq_y = Rust.substitute(mirror_equation[1], bindings, t_offset);
             location.hash = encodeURIComponent(figure_equation[0] + "," + figure_equation[1] + "," + mirror_equation[0] + "," + mirror_equation[1] + "," + Array.from(bindings).map(binding => binding.join(":")).join(";"));
 
             let [dx, dy] = [0, 0];
@@ -355,9 +357,13 @@ document.addEventListener("DOMContentLoaded", () => {
     method_button("lines", true);
     method_button("quads", false);
 
-    const norms_text = document.createElement("span");
-    norms_text.appendChild(document.createTextNode("draw normals:"));
-    document.body.appendChild(norms_text);
+    function append_text_span(element, text) {
+        const span = document.createElement("span");
+        span.appendChild(document.createTextNode(text));
+        element.appendChild(span);
+    }
+
+    append_text_span(document.body, "draw normals:");
 
     const draw_normals = document.createElement("input");
     draw_normals.type = "checkbox";
@@ -369,6 +375,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     document.body.appendChild(draw_normals);
 
+    const thresh_container = document.createElement("div");
     thresh_slider.type = "range";
     thresh_slider.min = 0.0;
     thresh_slider.max = 64.0;
@@ -378,5 +385,23 @@ document.addEventListener("DOMContentLoaded", () => {
         recompute = true;
         window.requestAnimationFrame(render);
     });
-    document.body.appendChild(thresh_slider);
+    append_text_span(thresh_container, "threshold:");
+    thresh_container.appendChild(thresh_slider);
+    document.body.appendChild(thresh_container);
+
+    const t_offset_container = document.createElement("div");
+    const t_offset_slider = document.createElement("input");
+    t_offset_slider.type = "range";
+    t_offset_slider.min = 0.0;
+    t_offset_slider.max = 1.0;
+    t_offset_slider.step = 0.01;
+    t_offset_slider.value = 0;
+    t_offset_slider.addEventListener("input", () => {
+        t_offset = t_offset_slider.value;
+        recompute = true;
+        window.requestAnimationFrame(render);
+    });
+    append_text_span(t_offset_container, "t offset:");
+    t_offset_container.appendChild(t_offset_slider);
+    document.body.appendChild(t_offset_container);
 });

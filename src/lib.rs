@@ -6,6 +6,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 #![allow(unused_variables)]
+#![deny(bare_trait_objects)]
 
 #[macro_use]
 extern crate serde_json;
@@ -31,6 +32,7 @@ use std::ops::RangeInclusive;
 use std::ops::Sub;
 use std::rc::Rc;
 use std::fmt::Debug;
+use std::cmp::Reverse;
 
 pub mod parser;
 use parser::{Lexer, Parser};
@@ -77,10 +79,18 @@ impl Iterator for IntervalIter {
     }
 }
 
-trait Delta {
+pub trait Delta {
     type Output: Ord;
 
     fn delta(&self, &Self) -> Self::Output;
+}
+
+impl Delta for () {
+    type Output = ();
+
+    fn delta(&self, other: &Self) -> Self::Output {
+        ()
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -96,15 +106,35 @@ impl Delta for Angle {
     type Output = OrdFloat;
 
     fn delta(&self, other: &Self) -> Self::Output {
-        OrdFloat((self.0 - other.0 + PI).mod_euc(2.0 * PI) - PI)
+        OrdFloat(((self.0 - other.0 + PI).mod_euc(2.0 * PI) - PI).abs())
+    }
+}
+
+impl Delta for f64 {
+    type Output = OrdFloat;
+
+    fn delta(&self, other: &Self) -> Self::Output {
+        OrdFloat(self - other)
     }
 }
 
 struct Equation {
-    function: Box<Fn(f64) -> (f64, f64)>,
+    function: Box<dyn Fn(f64) -> (f64, f64)>,
 }
 
-fn derivative(f: &Box<Fn(f64) -> (f64, f64)>, t: f64) -> (f64, f64) {
+struct DerivedEquation<'a> {
+    function: Box<dyn 'a + Fn(f64) -> (f64, f64)>,
+}
+
+impl<'a> DerivedEquation<'a> {
+    fn gradient(&self, t: f64) -> Angle {
+        let (dx, dy) = derivative(&self.function, t);
+        println!("\t{} {}", dx, dy);
+        Angle::new(dy.atan2(dx))
+    }
+}
+
+fn derivative<'a>(f: &Box<dyn 'a + Fn(f64) -> (f64, f64)>, t: f64) -> (f64, f64) {
     let h = 0.1;
     let (fp, fm) = (f(t + h), f(t - h));
     let d = 2.0 * h;
@@ -128,6 +158,14 @@ impl Equation {
     fn gradient(&self, t: f64) -> Angle {
         let (dx, dy) = derivative(&self.function, t);
         Angle::new(dy.atan2(dx))
+    }
+
+    fn derivative<'a>(&'a self) -> DerivedEquation<'a> {
+        DerivedEquation {
+            function: Box::new(move |t| {
+                derivative(&self.function, t)
+            }),
+        }
     }
 }
 
@@ -232,7 +270,7 @@ fn approximate_reflection_kd(
 }
 
 #[derive(Clone, Copy)]
-struct KeyValue<K, V>(K, V);
+pub struct KeyValue<K, V>(pub K, pub V);
 
 impl<K: PartialEq, V> PartialEq for KeyValue<K, V> {
     fn eq(&self, other: &KeyValue<K, V>) -> bool {
@@ -255,7 +293,7 @@ impl<K: Ord, V> Ord for KeyValue<K, V> {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct OrdFloat(f64);
+pub struct OrdFloat(pub f64);
 
 impl PartialEq for OrdFloat {
     fn eq(&self, other: &OrdFloat) -> bool {
@@ -278,7 +316,7 @@ impl Ord for OrdFloat {
 }
 
 // FIXME: replace this with an iterator
-fn adaptive_sample<K: Clone + Delta, V: Clone, F: Fn(f64) -> KeyValue<K, V>>(
+pub fn adaptive_sample<K: Clone + Delta, V: Clone, F: Fn(f64) -> KeyValue<K, V>>(
     f: F,
     range: &RangeInclusive<f64>,
     samples: u64,
@@ -294,14 +332,17 @@ fn adaptive_sample<K: Clone + Delta, V: Clone, F: Fn(f64) -> KeyValue<K, V>>(
         (t, f(t))
     };
 
-    let add_segment = |
-        pq: &mut BinaryHeap<KeyValue<<K as Delta>::Output, ((f64, KeyValue<K, V>), (f64, KeyValue<K, V>))>>,
+    let mut i = 0;
+
+    let mut add_segment = |
+        pq: &mut BinaryHeap<KeyValue<(<K as Delta>::Output, Reverse<i64>), ((f64, KeyValue<K, V>), (f64, KeyValue<K, V>))>>,
         low: (f64, KeyValue<K, V>),
         high: (f64, KeyValue<K, V>),
     | {
         // This requires the difference to be commutative.
         // delta between keys
-        pq.push(KeyValue((&(high.1).0).delta(&(low.1).0), (low, high)));
+        pq.push(KeyValue(((&(high.1).0).delta(&(low.1).0), Reverse(i)), (low, high)));
+        i += 1;
     };
 
     let (t_min, t_max) = range.clone().into_inner();
@@ -314,9 +355,9 @@ fn adaptive_sample<K: Clone + Delta, V: Clone, F: Fn(f64) -> KeyValue<K, V>>(
         // println!("loop");
         // Get the segment with the largest delta.
         let KeyValue(delta, (low, high)) = pq.pop().unwrap();
-        // log(&format!("{:?}", delta));
         // Get the midpoint of the segment.
         let mid = evaled_pair(low.0 / 2.0 + high.0 / 2.0);
+        println!("{:?} {:?} {:?} {:?}", delta, low.0, high.0, mid.0);
         ts.push((mid.1).1.clone());
         add_segment(&mut pq, low, mid.clone());
         add_segment(&mut pq, mid, high);
@@ -432,7 +473,22 @@ fn approximate_reflection_adaptive_rtree_quads(
         }
     }
 
-    let samps1: Vec<_> = (Interval { start: -256.0, end: 256.0, step: 1.0 }).iter().map(|t| {
+    // let mut adsamp = adaptive_sample(|t| KeyValue((), t), &(-256.0..=256.0), 513);
+    let mut adsamp = adaptive_sample(|t| {
+        // let (x, y) = (mirror.derivative().function)(t);
+        // println!("(x,y)={:?} t={} l={}", (x, y), t, [x, y].length2());
+        // KeyValue([x, y].length2(), t)
+        // KeyValue(mirror.gradient(t), t)
+        KeyValue((), t)
+    }, &(-256.0..=256.0), 513);
+    adsamp.sort_unstable_by_key(|&x| OrdFloat(x));
+
+    let samps1: Vec<_> =
+    // (Interval { start: -256.0, end: 256.0, step: 1.0 }).iter()
+    adsamp.into_iter()
+
+    .map(|t| {
+        println!("{}", t);
         let normal = mirror.normal(t);
         let samps: Vec<((f64, f64), (f64, f64), (f64, f64))> = (Interval { start: -256.0, end: 256.0, step: 512.0 }).iter().filter_map(|s| {
             let nfs = (normal.function)(s);
@@ -454,8 +510,8 @@ fn approximate_reflection_adaptive_rtree_quads(
             for i in 0..wins1.len() {
                 let (l, r) = (wins1[i], wins2[i]);
                 if let (&[s11, s12], &[s21, s22]) = (l, r) {
-                    println!("add quad {:?} {:?} {:?} {:?}", ((s11.0).0, (s11.0).1), ((s12.0).0, (s12.0).1), ((s22.0).0, (s22.0).1), ((s21.0).0, (s21.0).1));
-                    println!("{:?} {:?} {:?} {:?}", s11.2, s12.2, s22.2, s21.2);
+                    // println!("add quad {:?} {:?} {:?} {:?}", ((s11.0).0, (s11.0).1), ((s12.0).0, (s12.0).1), ((s22.0).0, (s22.0).1), ((s21.0).0, (s21.0).1));
+                    // println!("{:?} {:?} {:?} {:?}", s11.2, s12.2, s22.2, s21.2);
                     let mut quad = Quad::new([
                         [(s11.0).0, (s11.0).1],
                         [(s12.0).0, (s12.0).1],
@@ -476,15 +532,15 @@ fn approximate_reflection_adaptive_rtree_quads(
 
     let mut reflection = HashSet::new();
 
-    let figure_sample = adaptive_sample(
-        |t| {
-            // log(&format!("{:?}", t));
-            let (x, y) = (figure.function)(t);
-            KeyValue(Point2D(x, y), (x, y))
-        },
-        &range,
-        samples * 2,
-    );
+    // let figure_sample = adaptive_sample(
+    //     |t| {
+    //         // log(&format!("{:?}", t));
+    //         let (x, y) = (figure.function)(t);
+    //         KeyValue(Point2D(x, y), (x, y))
+    //     },
+    //     &range,
+    //     samples * 2,
+    // );
     let interval_sample = figure.sample(&(Interval { start: -256.0, end: 256.0, step: 0.5 }));
 
     let threshold = thresh.sqrt();
