@@ -3,7 +3,9 @@
 }
 
 body {
+	margin: 0;
 	background: hsl(0, 0%, 10%);
+	font-family: "Helvetica Neue";
 }
 
 canvas {
@@ -12,23 +14,20 @@ canvas {
 	transform: translate(-50%, -50%);
 }
 
-input[type="text"], button {
+button {
 	display: block;
-}
-
-span {
-	color: hsl(0, 0%, 90%);
-	font: 12pt sans-serif;
 }
 
 input[type="text"] {
 	background: hsl(0, 0%, 14%);
-	font-size: 20pt;
+	font-size: 12pt;
+	text-align: center;
 	color: hsl(0, 0%, 90%);
 	border: hsl(190, 0%, 50%) 2px solid;
 	border-radius: 4px;
 	padding: 2pt 4pt;
 	outline: none;
+	vertical-align: middle;
 }
 
 input[type="text"] {
@@ -63,4 +62,66 @@ input[type="text"].mirror:focus::selection {
 
 .hidden {
 	display: none !important;
+}
+
+header {
+	background: hsl(200, 100%, 50%);
+	font: 300 16pt "Helvetica Neue";
+	padding: 2pt 4pt;
+}
+
+.parametric-equation {
+	display: inline-block;
+}
+
+.parametric-equation, .parametric-equation > .divider {
+	font: 18pt "Helvetica Neue";
+}
+
+.parametric-equation::before {
+	content: "(";
+	padding-right: 4pt;
+}
+
+.parametric-equation::after {
+	content: ")";
+	padding-left: 4pt;
+}
+
+.parametric-equation > .divider::after {
+	content: ",";
+	padding: 0 4pt;
+}
+
+.options {
+	background: hsl(0, 0%, 16%);
+	color: hsl(0, 0%, 90%);
+	padding: 2pt 4pt;
+	font: 300 12pt "Helvetica Neue";
+}
+
+label {
+	padding: 0 4pt;
+}
+
+label:first-child {
+	padding-left: 0;
+}
+
+.variable {
+	color: hsl(0, 0%, 10%);
+	background: hsl(190, 100%, 50%);
+}
+
+.variable .value {
+	display: inline-block;
+	min-width: 24pt;
+	text-align: right;
+}
+
+select {
+	vertical-align: middle;
+	display: inline-block;
+	line-height: 24pt;
+	float: right;
 }

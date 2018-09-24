@@ -30,9 +30,11 @@ class Canvas {
         const vertices = new Path2D();
         const path = new Path2D();
         this.context.beginPath();
-        for (const point of points) {
-            const [px, py] = point;
-            const [x, y] = [px + view.width / 2 - view.x, py + view.height / 2 - view.y];
+        const scale = 2 ** view.scale;
+        for (const [ux, uy] of points) {
+            const [ox, oy] = [ux - view.x, uy - view.y];
+            const [sx, sy] = [ox * scale, oy * scale];
+            const [x, y] = [sx + view.width / 2, sy + view.height / 2];
             path.lineTo(x * dpr, y * dpr);
             vertices.moveTo(x * dpr, y * dpr);
             vertices.arc(x * dpr, y * dpr, width / 2 * dpr, 0, 2 * Math.PI);
@@ -83,12 +85,21 @@ class Rust {
         }
     }
 
-    static plot_reflection(canvas, view, figure, mirror, reflection) {
+    static plot_reflection(canvas, view, figure, mirror, reflection, pointer) {
         canvas.context.fillStyle = canvas.context.strokeStyle = "blue";
         canvas.plot_equation(view, figure);
         canvas.context.fillStyle = canvas.context.strokeStyle = "red";
         canvas.plot_equation(view, mirror);
-        canvas.context.fillStyle = canvas.context.strokeStyle = "purple";
+        // if (pointer.held === null && pointer.x !== null && pointer.y !== null) {
+        //     const dpr = window.devicePixelRatio;
+        //     const gradient = canvas.context.createRadialGradient(pointer.x * dpr, canvas.height * dpr - pointer.y * dpr, 0 * dpr, pointer.x * dpr, canvas.height * dpr - pointer.y * dpr, 32 * dpr);
+        //     gradient.addColorStop(0, "yellow");
+        //     gradient.addColorStop(1, "yellow");
+        //     gradient.addColorStop(1, "purple");
+        //     canvas.context.fillStyle = canvas.context.strokeStyle = gradient;
+        // } else {
+            canvas.context.fillStyle = canvas.context.strokeStyle = "purple";
+        // }
         canvas.plot_points(view, reflection);
         performance.mark("wasm-bindgen-plot");
     }
@@ -109,19 +120,29 @@ class Rust {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    function create_input(action) {
+    function create_input(element, action) {
         const input = document.createElement("input");
         input.type = "text";
         input.addEventListener("input", action);
-        document.body.appendChild(input);
+        element.appendChild(input);
         return input;
     }
 
+    const equation_container = document.createElement("div");
+    equation_container.classList.add("options");
+    document.body.appendChild(equation_container);
+
     function create_equation_input(action, class_name) {
-        const x = create_input(action);
-        const y = create_input(action);
+        const div = document.createElement("div");
+        div.classList.add("parametric-equation");
+        const x = create_input(div, action);
+        const divider = document.createElement("span");
+        divider.classList.add("divider");
+        div.appendChild(divider);
+        const y = create_input(div, action);
         x.classList.add(class_name);
         y.classList.add(class_name);
+        equation_container.appendChild(div);
         return [x, y];
     }
 
@@ -130,31 +151,33 @@ document.addEventListener("DOMContentLoaded", () => {
     bindings = new Map(bindings.split(";").map(binding => binding.split(":")));
     let figure_equation = [figure_equation_x, figure_equation_y];
     let mirror_equation = [mirror_equation_x, mirror_equation_y];
-    let thresh = 0;
-    let method = "quads";
+    let thresh = "4";
+    let method = "quadratic";
     let norms = false;
     let recompute = false;
-    let t_offset = 0;
+    let t_offset = "0";
+    const lazy_rendering = true;
 
     let render = () => {};
 
     Rust.connect().then(() => {
         performance.mark("wasm-bindgen-load");
-        let canvas = new Canvas();
-        let view = { x: 0, y: 0, width: canvas.width, height: canvas.height };
+        const canvas = new Canvas();
+        const canvas_offset = canvas.element.getBoundingClientRect();
+        let view = { x: 0, y: 0, width: canvas.width, height: canvas.height, scale: 0 };
 
-        let pointer = {
+        const pointer = {
             x: null,
             y: null,
             held: null,
         };
 
-        let gview = view;
+        const gview = view;
 
         canvas.element.addEventListener("mousedown", event => {
             if (event.button === 0) {
-                pointer.x = event.pageX - window.scrollX;
-                pointer.y = event.pageY - window.scrollY;
+                pointer.x = event.pageX - window.scrollX - canvas_offset.left;
+                pointer.y = event.pageY - window.scrollY - canvas_offset.top;
                 pointer.held = {
                     x: pointer.x,
                     y: pointer.y,
@@ -162,22 +185,40 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
+        canvas.element.addEventListener("wheel", event => {
+            event.preventDefault();
+            if (pointer.x !== null && pointer.y !== null) {
+                const scale = 2 ** view.scale;
+                const new_scale = 2 ** (view.scale - event.deltaY / 40);
+                const [delta_x, delta_y] = [(pointer.x - canvas.width / 2) / scale, (pointer.y - canvas.height / 2) / scale];
+                const [nu_x, nu_y] = [(pointer.x - canvas.width / 2) / new_scale, (pointer.y - canvas.height / 2) / new_scale];
+                gview.x += delta_x - nu_x;
+                gview.y -= delta_y - nu_y;
+            }
+            view.scale = view.scale - event.deltaY / 40;
+            if (lazy_rendering) {
+                window.requestAnimationFrame(render);
+            }
+        });
+
         window.addEventListener("mouseup", event => {
             if (event.button === 0) {
-                pointer.x = event.pageX - window.scrollX;
-                pointer.y = event.pageY - window.scrollY;
+                pointer.x = event.pageX - window.scrollX - canvas_offset.left;
+                pointer.y = event.pageY - window.scrollY - canvas_offset.top;
                 if (pointer.held !== null) {
-                    gview.x -= pointer.x - pointer.held.x;
-                    gview.y += pointer.y - pointer.held.y;
+                    const scale = 2 ** view.scale;
+                    gview.x -= (pointer.x - pointer.held.x) / scale;
+                    gview.y += (pointer.y - pointer.held.y) / scale;
                     pointer.held = null;
+                    window.requestAnimationFrame(render);
                 }
             }
         });
 
         window.addEventListener("mousemove", event => {
-            pointer.x = event.pageX - window.scrollX;
-            pointer.y = event.pageY - window.scrollY;
-            if (pointer.held !== null) {
+            pointer.x = event.pageX - window.scrollX - canvas_offset.left;
+            pointer.y = event.pageY - window.scrollY - canvas_offset.top;
+            if (pointer.held !== null || pointer.held === null && !lazy_rendering) {
                 window.requestAnimationFrame(render);
             }
         });
@@ -205,7 +246,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 dx = pointer.x - pointer.held.x;
                 dy = pointer.y - pointer.held.y;
             }
-            view = { x: gview.x - dx, y: gview.y + dy, width: canvas.width, height: canvas.height };
+            const scale = 2 ** view.scale;
+            view = { x: gview.x - dx / scale, y: gview.y + dy / scale, width: canvas.width, height: canvas.height, scale: view.scale };
 
             canvas.clear();
 
@@ -227,7 +269,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     let [mirror, normals, figure, reflection] = data;
 
                     plot_normals(normals);
-                    Rust.plot_reflection(canvas, view, figure, mirror, reflection);
+                    Rust.plot_reflection(canvas, view, figure, mirror, reflection, pointer);
 
                     if (start) {
                         Rust.measure(
@@ -256,25 +298,29 @@ document.addEventListener("DOMContentLoaded", () => {
                     const data = old_data;
                     let [mirror, normals, figure, reflection] = data;
                     plot_normals(normals);
-                    Rust.plot_reflection(canvas, view, figure, mirror, reflection);
+                    Rust.plot_reflection(canvas, view, figure, mirror, reflection, pointer);
                 }
+            }
+
+            if (!lazy_rendering) {
+                window.requestAnimationFrame(render);
             }
         }
 
         window.requestAnimationFrame(render);
     });
 
-    const fig_text = document.createElement("span");
-    fig_text.appendChild(document.createTextNode("Reflect the figure:"));
-    document.body.appendChild(fig_text);
+    const fig_text = document.createElement("label");
+    fig_text.appendChild(document.createTextNode("Reflect the figure"));
+    equation_container.appendChild(fig_text);
 
     const var_sliders = [];
     const var_container = document.createElement("div");
 
     function add_var_slider(v) {
         const container = document.createElement("div");
+        container.classList.add("variable")
         const var_text = document.createElement("span");
-        var_text.appendChild(document.createTextNode(`${v}:`));
         container.appendChild(var_text);
         const slider = document.createElement("input");
         slider.type = "range";
@@ -284,10 +330,18 @@ document.addEventListener("DOMContentLoaded", () => {
             bindings.set(v, "0");
         }
         slider.value = bindings.get(v);
+        var_text.appendChild(document.createTextNode(`${v} = `));
+        const value_text = document.createElement("div");
+        value_text.classList.add("value");
+        value_text.appendChild(document.createTextNode(slider.value));
+        var_text.appendChild(value_text);
         slider.addEventListener("input", () => {
             bindings.set(v, slider.value);
+            value_text.childNodes[0].nodeValue = slider.value;
             recompute = true;
-            window.requestAnimationFrame(render);
+            if (lazy_rendering) {
+                window.requestAnimationFrame(render);
+            }
         });
         var_sliders.push({
             var: v,
@@ -318,44 +372,50 @@ document.addEventListener("DOMContentLoaded", () => {
         figure_equation = [figure[0].value, figure[1].value];
         extract_variables();
         recompute = true;
-        window.requestAnimationFrame(render);
+        if (lazy_rendering) {
+            window.requestAnimationFrame(render);
+        }
     }, "figure");
-    [figure[0].value, figure[1].value] = figure_equation;
+    [figure[0].value, figure[1].value] = figure_equation;;
+    fig_text.setAttribute("for", figure[0].id = "figure-equation");
 
-    const mirr_text = document.createElement("span");
-    mirr_text.appendChild(document.createTextNode("in the mirror:"));
-    document.body.appendChild(mirr_text);
+    const mirr_text = document.createElement("label");
+    mirr_text.appendChild(document.createTextNode("in the mirror"));
+    equation_container.appendChild(mirr_text);
 
     const mirror = create_equation_input(() => {
         mirror_equation = [mirror[0].value, mirror[1].value];
         extract_variables();
         recompute = true;
-        window.requestAnimationFrame(render);
+        if (lazy_rendering) {
+            window.requestAnimationFrame(render);
+        }
     }, "mirror");
     [mirror[0].value, mirror[1].value] = mirror_equation;
+    mirr_text.setAttribute("for", mirror[0].id = "mirror-equation");
 
-    document.body.appendChild(var_container);
+    const method_selector = document.createElement("select");
+    for (const method of ["Rasterisation", "Linear", "Quadratic"]) {
+        const option = document.createElement("option");
+        option.value = method.toLowerCase();
+        option.appendChild(document.createTextNode(method));
+        method_selector.appendChild(option);
+    }
+    method_selector.value = method;
+    method_selector.addEventListener("input", () => {
+        method = method_selector.value;
+        recompute = true;
+        if (lazy_rendering) {
+            window.requestAnimationFrame(render);
+        }
+    });
+    equation_container.appendChild(method_selector);
+
+    equation_container.appendChild(var_container);
 
     extract_variables();
 
     const thresh_slider = document.createElement("input");
-
-    function method_button(name, force_thresh) {
-        const button = document.createElement("button");
-        button.appendChild(document.createTextNode(name));
-        button.addEventListener("click", () => {
-            method = name;
-            thresh_slider.value = force_thresh ? "2" : "0";
-            thresh = thresh_slider.value;
-            recompute = true;
-            window.requestAnimationFrame(render);
-        });
-        document.body.appendChild(button);
-    }
-    method_button("visual", true);
-    method_button("kd", true);
-    method_button("lines", true);
-    method_button("quads", false);
 
     function append_text_span(element, text) {
         const span = document.createElement("span");
@@ -371,7 +431,9 @@ document.addEventListener("DOMContentLoaded", () => {
     draw_normals.addEventListener("input", () => {
         norms = draw_normals.checked;
         recompute = true;
-        window.requestAnimationFrame(render);
+        if (lazy_rendering) {
+            window.requestAnimationFrame(render);
+        }
     });
     document.body.appendChild(draw_normals);
 
@@ -383,7 +445,9 @@ document.addEventListener("DOMContentLoaded", () => {
     thresh_slider.addEventListener("input", () => {
         thresh = thresh_slider.value;
         recompute = true;
-        window.requestAnimationFrame(render);
+        if (lazy_rendering) {
+            window.requestAnimationFrame(render);
+        }
     });
     append_text_span(thresh_container, "threshold:");
     thresh_container.appendChild(thresh_slider);
@@ -399,7 +463,9 @@ document.addEventListener("DOMContentLoaded", () => {
     t_offset_slider.addEventListener("input", () => {
         t_offset = t_offset_slider.value;
         recompute = true;
-        window.requestAnimationFrame(render);
+        if (lazy_rendering) {
+            window.requestAnimationFrame(render);
+        }
     });
     append_text_span(t_offset_container, "t offset:");
     t_offset_container.appendChild(t_offset_slider);
