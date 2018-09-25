@@ -248,7 +248,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const fig_eq_y = Rust.substitute(figure_equation[1], bindings, t_offset);
             const mirr_eq_x = Rust.substitute(mirror_equation[0], bindings, t_offset);
             const mirr_eq_y = Rust.substitute(mirror_equation[1], bindings, t_offset);
-            location.hash = encodeURIComponent(figure_equation[0] + "," + figure_equation[1] + "," + mirror_equation[0] + "," + mirror_equation[1] + "," + Array.from(bindings).map(binding => binding.join(":")).join(";"));
+            const present_vars = extract_variables();
+            location.hash = encodeURIComponent(figure_equation[0] + "," + figure_equation[1] + "," + mirror_equation[0] + "," + mirror_equation[1] + "," + Array.from(bindings).filter(binding => present_vars.has(binding[0])).map(binding => binding.join(":")).join(";"));
 
             let [dx, dy] = [0, 0];
             if (pointer.held !== null) {
@@ -371,14 +372,17 @@ document.addEventListener("DOMContentLoaded", () => {
         const vars = new Set();
         [figure[0], figure[1], mirror[0], mirror[1]].map(eq => [...extract(eq.value)].forEach(x => vars.add(x)));
         vars.delete("t"); // special parameter
-        for (const slider of var_sliders) {
-            slider.element.parentElement.classList.toggle("hidden", !vars.has(slider.var));
-            vars.delete(slider.var);
-        }
-        const var_add_order = Array.from(vars);
-        var_add_order.sort();
-        for (const new_var of var_add_order) {
-            add_var_slider(new_var);
+        const old_vars = new Set(var_sliders.map(slider => slider.var));
+        if (vars.size !== old_vars.size || !Array.from(vars).every(x => old_vars.has(x))) {
+            var_sliders.length = 0;
+            while (var_container.firstChild !== null) {
+                var_container.removeChild(var_container.firstChild);
+            }
+            const var_add_order = Array.from(vars);
+            var_add_order.sort();
+            for (const new_var of var_add_order) {
+                add_var_slider(new_var);
+            }
         }
         return vars;
     }
