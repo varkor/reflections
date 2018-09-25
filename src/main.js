@@ -3,10 +3,10 @@
 performance.mark("script-load");
 
 class Canvas {
-    constructor() {
+    constructor(parent) {
         const canvas = this.element = document.createElement("canvas");
         this.context = canvas.getContext("2d");
-        document.body.appendChild(canvas);
+        parent.appendChild(canvas);
 
         [this.width, this.height] = [640, 480];
         const dpr = window.devicePixelRatio;
@@ -86,9 +86,9 @@ class Rust {
     }
 
     static plot_reflection(canvas, view, figure, mirror, reflection, pointer) {
-        canvas.context.fillStyle = canvas.context.strokeStyle = "blue";
+        canvas.context.fillStyle = canvas.context.strokeStyle = "hsl(190, 100%, 50%)";
         canvas.plot_equation(view, figure);
-        canvas.context.fillStyle = canvas.context.strokeStyle = "red";
+        canvas.context.fillStyle = canvas.context.strokeStyle = "hsl(0, 100%, 50%)";
         canvas.plot_equation(view, mirror);
         // if (pointer.held === null && pointer.x !== null && pointer.y !== null) {
         //     const dpr = window.devicePixelRatio;
@@ -98,7 +98,7 @@ class Rust {
         //     gradient.addColorStop(1, "purple");
         //     canvas.context.fillStyle = canvas.context.strokeStyle = gradient;
         // } else {
-            canvas.context.fillStyle = canvas.context.strokeStyle = "purple";
+            canvas.context.fillStyle = canvas.context.strokeStyle = "hsl(280, 100%, 50%)";
         // }
         canvas.plot_points(view, reflection);
         performance.mark("wasm-bindgen-plot");
@@ -160,9 +160,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let render = () => {};
 
+    const main = document.createElement("main");
+
     Rust.connect().then(() => {
         performance.mark("wasm-bindgen-load");
-        const canvas = new Canvas();
+        const canvas = new Canvas(main);
         const canvas_offset = canvas.element.getBoundingClientRect();
         let view = { x: 0, y: 0, width: canvas.width, height: canvas.height, scale: 0 };
 
@@ -172,7 +174,14 @@ document.addEventListener("DOMContentLoaded", () => {
             held: null,
         };
 
-        const gview = view;
+        let gview = view;
+
+        canvas.element.addEventListener("dblclick", () => {
+            gview = view = { x: 0, y: 0, width: canvas.width, height: canvas.height, scale: 0 };
+            if (lazy_rendering) {
+                window.requestAnimationFrame(render);
+            }
+        });
 
         canvas.element.addEventListener("mousedown", event => {
             if (event.button === 0) {
@@ -189,17 +198,17 @@ document.addEventListener("DOMContentLoaded", () => {
             event.preventDefault();
             if (pointer.x !== null && pointer.y !== null) {
                 const scale = 2 ** view.scale;
-                const new_scale = 2 ** (view.scale - event.deltaY / 40);
+                const new_scale = 2 ** (view.scale - event.deltaY / 200);
                 const [delta_x, delta_y] = [(pointer.x - canvas.width / 2) / scale, (pointer.y - canvas.height / 2) / scale];
                 const [nu_x, nu_y] = [(pointer.x - canvas.width / 2) / new_scale, (pointer.y - canvas.height / 2) / new_scale];
                 gview.x += delta_x - nu_x;
                 gview.y -= delta_y - nu_y;
             }
-            view.scale = view.scale - event.deltaY / 40;
+            view.scale = view.scale - event.deltaY / 200;
             if (lazy_rendering) {
                 window.requestAnimationFrame(render);
             }
-        });
+        }, { passive: false });
 
         window.addEventListener("mouseup", event => {
             if (event.button === 0) {
@@ -315,7 +324,11 @@ document.addEventListener("DOMContentLoaded", () => {
     equation_container.appendChild(fig_text);
 
     const var_sliders = [];
+    const outer = document.createElement("div");
+
     const var_container = document.createElement("div");
+    var_container.classList.add("variables");
+    outer.appendChild(var_container);
 
     function add_var_slider(v) {
         const container = document.createElement("div");
@@ -362,7 +375,9 @@ document.addEventListener("DOMContentLoaded", () => {
             slider.element.parentElement.classList.toggle("hidden", !vars.has(slider.var));
             vars.delete(slider.var);
         }
-        for (const new_var of vars) {
+        const var_add_order = Array.from(vars);
+        var_add_order.sort();
+        for (const new_var of var_add_order) {
             add_var_slider(new_var);
         }
         return vars;
@@ -394,6 +409,10 @@ document.addEventListener("DOMContentLoaded", () => {
     [mirror[0].value, mirror[1].value] = mirror_equation;
     mirr_text.setAttribute("for", mirror[0].id = "mirror-equation");
 
+    equation_container.appendChild(document.createTextNode(", where:"));
+
+    const dev_options = document.createElement("div");
+    dev_options.classList.add("dev-options");
     const method_selector = document.createElement("select");
     for (const method of ["Rasterisation", "Linear", "Quadratic"]) {
         const option = document.createElement("option");
@@ -409,21 +428,24 @@ document.addEventListener("DOMContentLoaded", () => {
             window.requestAnimationFrame(render);
         }
     });
-    equation_container.appendChild(method_selector);
+    dev_options.appendChild(method_selector);
+    equation_container.appendChild(dev_options);
 
-    equation_container.appendChild(var_container);
+    equation_container.appendChild(outer);
 
     extract_variables();
 
     const thresh_slider = document.createElement("input");
 
     function append_text_span(element, text) {
-        const span = document.createElement("span");
+        const span = document.createElement("label");
         span.appendChild(document.createTextNode(text));
         element.appendChild(span);
+        return span;
     }
 
-    append_text_span(document.body, "draw normals:");
+    const normal_div = document.createElement("div");
+    const draw_normal_label = append_text_span(normal_div, "Draw normals:");
 
     const draw_normals = document.createElement("input");
     draw_normals.type = "checkbox";
@@ -435,7 +457,9 @@ document.addEventListener("DOMContentLoaded", () => {
             window.requestAnimationFrame(render);
         }
     });
-    document.body.appendChild(draw_normals);
+    normal_div.appendChild(draw_normals);
+    draw_normal_label.setAttribute("for", draw_normals.id = "draw-normals");
+    dev_options.appendChild(normal_div);
 
     const thresh_container = document.createElement("div");
     thresh_slider.type = "range";
@@ -449,9 +473,9 @@ document.addEventListener("DOMContentLoaded", () => {
             window.requestAnimationFrame(render);
         }
     });
-    append_text_span(thresh_container, "threshold:");
+    append_text_span(thresh_container, "Threshold:");
     thresh_container.appendChild(thresh_slider);
-    document.body.appendChild(thresh_container);
+    dev_options.appendChild(thresh_container);
 
     const t_offset_container = document.createElement("div");
     const t_offset_slider = document.createElement("input");
@@ -469,5 +493,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     append_text_span(t_offset_container, "t offset:");
     t_offset_container.appendChild(t_offset_slider);
-    document.body.appendChild(t_offset_container);
+    dev_options.appendChild(t_offset_container);
+
+    document.body.appendChild(main);
 });
