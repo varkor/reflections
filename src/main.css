@@ -109,6 +109,7 @@ header {
 	padding: 6pt 8pt;
 	font: 300 12pt "Helvetica Neue";
 	margin-bottom: 8pt;
+	min-height: 74pt;
 }
 
 label {
@@ -117,6 +118,10 @@ label {
 
 label:first-child {
 	padding-left: 0;
+}
+
+.variables:empty {
+	padding: 0;
 }
 
 .variables {
