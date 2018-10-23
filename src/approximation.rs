@@ -33,38 +33,23 @@ impl<K: Ord, V> Ord for KeyValue<K, V> {
     }
 }
 
+#[derive(Clone)]
 pub struct Interval {
     pub start: f64,
     pub end: f64,
     pub step: f64,
 }
 
-pub struct IntervalIter {
-    cur: f64,
-    end: f64,
-    step: f64,
-}
-
-impl Interval {
-    pub fn iter(&self) -> IntervalIter {
-        IntervalIter {
-            cur: self.start,
-            end: self.end,
-            step: self.step,
-        }
-    }
-}
-
-impl Iterator for IntervalIter {
+impl Iterator for Interval {
     type Item = f64;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.cur > self.end {
+        if self.start > self.end {
             None
         } else {
-            let cur = self.cur;
-            self.cur += self.step;
-            Some(cur)
+            let start = self.start;
+            self.start += self.step;
+            Some(start)
         }
     }
 }
@@ -137,7 +122,7 @@ pub struct Equation<'a> {
 
 impl<'a> Equation<'a> {
     pub fn sample(&self, interval: &Interval) -> Vec<(f64, f64)> {
-        interval.iter().map(|t| (self.function)(t)).collect()
+        interval.clone().map(|t| (self.function)(t)).collect()
     }
 
     pub fn normal(&self, t: f64) -> Equation {

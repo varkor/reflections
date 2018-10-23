@@ -47,10 +47,10 @@ impl ReflectionApproximator for RasterisationApproximator {
         let mut normals = vec![];
 
         // Generate the normal mappings.
-        for t in interval.iter() {
+        for t in interval.clone() {
             let normal = mirror.normal(t);
             let mut norm = vec![];
-            for s in interval.iter() {
+            for s in interval.clone() {
                 let z = (normal.function)(s);
                 norm.push(z);
                 if let Some((x, y)) = view.project(z) {
@@ -186,7 +186,7 @@ impl ReflectionApproximator for QuadraticApproximator {
         .map(|t| {
             println!("{}", t);
             let normal = mirror.normal(t);
-            let samps: Vec<((f64, f64), (f64, f64), (f64, f64))> = (Interval { start: -256.0, end: 256.0, step: 512.0 }).iter().filter_map(|s| {
+            let samps: Vec<((f64, f64), (f64, f64), (f64, f64))> = (Interval { start: -256.0, end: 256.0, step: 512.0 }).filter_map(|s| {
                 let nfs = (normal.function)(s);
                 let nfms = match (reflect, glide == 0.0) {
                     (true, true) => (normal.function)(-s),
@@ -301,11 +301,11 @@ impl ReflectionApproximator for LinearApproximator {
         let _range = interval.start..=interval.end;
         let _samples = ((interval.end - interval.start) / interval.step) as u64 + 1;
 
-        for t in (Interval { start: -256.0, end: 256.0, step: 1.0 }).iter() {
+        for t in (Interval { start: -256.0, end: 256.0, step: 1.0 }) {
             let normal = mirror.normal(t);
             let mut norm = vec![];
             // should be able to reduce sampling significantly here (only when linear)
-            let samps: Vec<((f64, f64), (f64, f64))> = (Interval { start: -256.0, end: 256.0, step: 512.0 }).iter().map(|s| {
+            let samps: Vec<((f64, f64), (f64, f64))> = (Interval { start: -256.0, end: 256.0, step: 512.0 }).map(|s| {
                 ((normal.function)(s), (normal.function)(-s))
             }).collect();
             for ((x, y), _) in &samps {
@@ -317,7 +317,7 @@ impl ReflectionApproximator for LinearApproximator {
                     pairs.push(SpatialObjectWithPayload(SimpleEdge::new([x1, y1], [x2, y2]), (v1, v2)));
                 }
             }
-            // for s in interval.iter() {
+            // for s in interval.clone() {
             //     let (x, y) = (normal.function)(s);
             //     norm.push((x, y));
             //     pairs.push(SpatialObjectWithPayload([x, y], (normal.function)(-s)));

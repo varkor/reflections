@@ -113,7 +113,7 @@ pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: Strin
     if !norms {
         normals = vec![];
     }
-    // let normals: Vec<_> = interval.iter().map(|t| mirror.normal(t).sample(&Interval { start: -256.0, end: 256.0, step: 2.0 }))).collect();
+    // let normals: Vec<_> = interval.clone().map(|t| mirror.normal(t).sample(&Interval { start: -256.0, end: 256.0, step: 2.0 }))).collect();
     // let normals: Vec<()> = vec![];
     // log(&format!("normals {:?}", normals));
     let json = json!((
