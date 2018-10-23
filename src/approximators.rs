@@ -23,6 +23,8 @@ pub trait ReflectionApproximator {
         figure: &Equation,
         interval: &Interval,
         view: &View,
+        reflect: bool,
+        glide: f64,
     ) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>);
 }
 
@@ -38,6 +40,8 @@ impl ReflectionApproximator for RasterisationApproximator {
         figure: &Equation,
         interval: &Interval,
         view: &View,
+        reflect: bool,
+        glide: f64,
     ) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
         let mut grid = vec![vec![]; (view.cols as usize) * (view.rows as usize)];
         let mut normals = vec![];
@@ -50,7 +54,13 @@ impl ReflectionApproximator for RasterisationApproximator {
                 let z = (normal.function)(s);
                 norm.push(z);
                 if let Some((x, y)) = view.project(z) {
-                    grid[x + y * (view.cols as usize)].push((normal.function)(-s));
+                    let nfms = match (reflect, glide == 0.0) {
+                        (true, true) => (normal.function)(-s),
+                        (false, true) => z,
+                        (true, false) => (mirror.normal(t + glide).function)(-s),
+                        (false, false) => (mirror.normal(t + glide).function)(s),
+                    };
+                    grid[x + y * (view.cols as usize)].push(nfms);
                 }
             }
             normals.push(norm);
@@ -82,6 +92,8 @@ impl ReflectionApproximator for QuadraticApproximator {
         figure: &Equation,
         _interval: &Interval,
         _: &View,
+        reflect: bool,
+        glide: f64,
     ) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
         let mut pairs = vec![];
         let norms = vec![];
@@ -176,7 +188,12 @@ impl ReflectionApproximator for QuadraticApproximator {
             let normal = mirror.normal(t);
             let samps: Vec<((f64, f64), (f64, f64), (f64, f64))> = (Interval { start: -256.0, end: 256.0, step: 512.0 }).iter().filter_map(|s| {
                 let nfs = (normal.function)(s);
-                let nfms = (normal.function)(-s);
+                let nfms = match (reflect, glide == 0.0) {
+                    (true, true) => (normal.function)(-s),
+                    (false, true) => nfs,
+                    (true, false) => (mirror.normal(t + glide).function)(-s),
+                    (false, false) => (mirror.normal(t + glide).function)(s),
+                };
                 if !nfs.0.is_nan() && !nfs.1.is_nan() && !nfms.0.is_nan() && !nfms.1.is_nan() {
                     Some((nfs, nfms, (t, s)))
                 } else {
@@ -275,6 +292,8 @@ impl ReflectionApproximator for LinearApproximator {
         figure: &Equation,
         interval: &Interval,
         _view: &View,
+        _reflect: bool,
+        _glide: f64,
     ) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
         let mut pairs = vec![];
         let mut norms = vec![];

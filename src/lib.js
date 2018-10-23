@@ -19,10 +19,12 @@ class Element {
 
     precede(neighbour) {
         neighbour.element.parentNode.insertBefore(this.element, neighbour.element);
+        return this;
     }
 
     follow(neighbour) {
         neighbour.element.parentNode.insertBefore(this.element, neighbour.element.nextSibling);
+        return this;
     }
 
     listen(event, action) {
@@ -299,6 +301,8 @@ class NonaffineReflection {
                 settings.get("method"),
                 settings.get("draw_normals"),
                 settings.get("threshold"),
+                settings.get("reflect"),
+                bindings.get("γ"),
             );
             performance.mark(PERFORMANCE_MARKERS.WASM_BINDGEN_CALL);
             try {

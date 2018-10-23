@@ -29,6 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ["method", "quadratic"],
         ["draw_normals", false],
         ["t_offset", "0"],
+        ["reflect", true],
     ]);
     let reflection = null;
 
@@ -79,7 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
         pointer = new Pointer(event, canvas_offset);
         drag_origin = old_pointer;
         if (request) {
-            window.requestAnimationFrame(render);
+            rerender(false);
         }
     });
 
@@ -125,8 +126,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function rerender(recompute) {
         // FIXME: make async to be faster
-        if (recompute) {
+        let [dx, dy] = [0, 0];
+        if (pointer !== null && drag_origin !== null) {
+            dx = pointer.x - drag_origin.x;
+            dy = pointer.y - drag_origin.y;
+            drag_origin.x = pointer.x;
+            drag_origin.y = pointer.y;
+        }
+        const scale = 2 ** view.scale;
+        view = { x: view.x - dx / scale, y: view.y + dy / scale, width: canvas.width, height: canvas.height, scale: view.scale };
 
+        if (recompute) {
             const t_offset = settings.get("t_offset");
             const bindings_new = new Map(bindings);
             bindings_new.set("t", `(t - ${t_offset})`);
@@ -137,56 +147,44 @@ document.addEventListener("DOMContentLoaded", () => {
                 bindings: Array.from(bindings).filter(binding => present_vars.has(binding[0])),
             }));
 
-            let [dx, dy] = [0, 0];
-            if (pointer !== null && drag_origin !== null) {
-                dx = pointer.x - drag_origin.x;
-                dy = pointer.y - drag_origin.y;
-                drag_origin.x = pointer.x;
-                drag_origin.y = pointer.y;
+            recompute = false;
+
+            if (!start) {
+                performance.mark(PERFORMANCE_MARKERS.START_MARKER);
             }
-            const scale = 2 ** view.scale;
-            view = { x: view.x - dx / scale, y: view.y + dy / scale, width: canvas.width, height: canvas.height, scale: view.scale };
+            reflection = new NonaffineReflection(
+                mirror_equation,
+                figure_equation,
+                bindings_new,
+                view,
+                settings,
+            );
+            reflection.points.then(data => {
+                let [_, normals] = data;
 
-            if (recompute) {
-                recompute = false;
-
-                if (!start) {
-                    performance.mark(PERFORMANCE_MARKERS.START_MARKER);
-                }
-                reflection = new NonaffineReflection(
-                    mirror_equation,
-                    figure_equation,
-                    bindings_new,
-                    view,
-                    settings,
-                );
-                reflection.points.then(data => {
-                    let [_, normals] = data;
-
-                    plot_normals(normals);
-                    reflection.plot(canvas, view, pointer).then(() => {
-                        if (start) {
-                            PerformanceLogger.log(
-                                PERFORMANCE_MARKERS.START_MARKER,
-                                PERFORMANCE_MARKERS.DOM_CONTENT_LOAD,
-                                PERFORMANCE_MARKERS.WASM_BINDGEN_CALL,
-                                PERFORMANCE_MARKERS.WASM_BINDGEN_PARSE,
-                                PERFORMANCE_MARKERS.CANVAS_RENDER,
-                            );
-                            console.log("");
-                        } else {
-                            PerformanceLogger.log(
-                                PERFORMANCE_MARKERS.START_MARKER,
-                                PERFORMANCE_MARKERS.WASM_BINDGEN_CALL,
-                                PERFORMANCE_MARKERS.WASM_BINDGEN_PARSE,
-                                PERFORMANCE_MARKERS.CANVAS_RENDER,
-                            );
-                            console.log("");
-                        }
-                        start = false;
-                    });
-                }).catch(() => {});
-            }
+                plot_normals(normals);
+                reflection.plot(canvas, view, pointer).then(() => {
+                    if (start) {
+                        PerformanceLogger.log(
+                            PERFORMANCE_MARKERS.START_MARKER,
+                            PERFORMANCE_MARKERS.DOM_CONTENT_LOAD,
+                            PERFORMANCE_MARKERS.WASM_BINDGEN_CALL,
+                            PERFORMANCE_MARKERS.WASM_BINDGEN_PARSE,
+                            PERFORMANCE_MARKERS.CANVAS_RENDER,
+                        );
+                        console.log("");
+                    } else {
+                        PerformanceLogger.log(
+                            PERFORMANCE_MARKERS.START_MARKER,
+                            PERFORMANCE_MARKERS.WASM_BINDGEN_CALL,
+                            PERFORMANCE_MARKERS.WASM_BINDGEN_PARSE,
+                            PERFORMANCE_MARKERS.CANVAS_RENDER,
+                        );
+                        console.log("");
+                    }
+                    start = false;
+                });
+            }).catch(() => {});
 
             reflection = new NonaffineReflection(
                 mirror_equation,
@@ -196,8 +194,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 settings,
             );
             reflection.points.then(() => window.requestAnimationFrame(render));
+        } else {
+            window.requestAnimationFrame(render);
         }
-        window.requestAnimationFrame(render)
     }
 
     const equation_container = new Div(["options"]).append_to(body);
@@ -249,7 +248,17 @@ document.addEventListener("DOMContentLoaded", () => {
             self.components[0].id = "figure-equation";
             [self.components[0].value, self.components[1].value] = figure_equation;
         });
-    new Label("Reflect the figure", figure.components[0]).precede(figure);
+    new Div(["inline"]).precede(figure)
+        .add_text("Reflect ")
+        .append(
+            new Checkbox(settings.get("reflect"))
+                .for_which(self => self.id = "reflect")
+                .listen("input", (_, self) => {
+                    settings.set("reflect", self.checked);
+                    rerender(true);
+                }),
+            new Label(" the figure", figure.components[0])
+        );
 
     const mirror = new ParametricEquationInput(() => {
         mirror_equation = mirror.components.map(({ value }) => value);
@@ -261,11 +270,11 @@ document.addEventListener("DOMContentLoaded", () => {
             self.components[0].id = "mirror-equation";
             [self.components[0].value, self.components[1].value] = mirror_equation;
         });
-    new Label("in the mirror", mirror.components[0]).precede(mirror);
+    new Label(" in the mirror", mirror.components[0]).precede(mirror);
 
-    equation_container.add_text(", where:");
+    equation_container.add_text(", and translate by γ, where:");
 
-    const var_container = new Div(["variables"]).append_to(equation_container);
+    const var_container = new Div(["variables"]).append_to(new Div().append_to(equation_container));
 
     const var_map = new Map();
 
@@ -273,13 +282,17 @@ document.addEventListener("DOMContentLoaded", () => {
         function add_var_slider(v) {
             const value = bindings.get(v);
             const value_text = new Div(["value"]).add_text(value);
+            const slider = new RangeSlider(-255, value, 255).listen("input", (_, self) => {
+                bindings.set(v, self.value);
+                value_text.element.childNodes[0].nodeValue = self.value;
+                rerender(true);
+            }).for_which(self => var_map.set(v, self));
+            if (/[α-ω]/.test(v)) {
+                slider.class_list.add("key");
+            }
             const container = new Div(["variable"])
                 .append(new Element("span").add_text(`${v} = `).append(value_text))
-                .append(new RangeSlider(-100, value, 100).listen("input", (_, self) => {
-                    bindings.set(v, self.value);
-                    value_text.element.childNodes[0].nodeValue = self.value;
-                    rerender(true);
-                }).for_which(self => var_map.set(v, self)));
+                .append(slider);
             return container;
         }
 
@@ -289,9 +302,18 @@ document.addEventListener("DOMContentLoaded", () => {
                 .flat()
         );
         vars.delete("t"); // `t` is a special parameter.
+        vars.add("γ");
 
         const all_vars = Array.from(new Set([...var_map.keys(), ...vars]));
-        all_vars.sort();
+        all_vars.sort((a, b) => {
+            if (a === "γ") {
+                return -1;
+            }
+            if (b === "γ") {
+                return 1;
+            }
+            return a.localCompare(b);
+        });
         let prev_var = null;
         for (const v of all_vars) {
             if (vars.has(v)) {

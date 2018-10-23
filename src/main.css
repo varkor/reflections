@@ -107,7 +107,7 @@ header {
 }
 
 label {
-	padding: 0 4pt;
+	padding-right: 4pt;
 }
 
 label:first-child {
@@ -115,6 +115,7 @@ label:first-child {
 }
 
 .variables:empty {
+	/* FIXME: needs to take into account .hidden variables */
 	padding: 0;
 }
 
@@ -123,6 +124,7 @@ label:first-child {
 	padding: 2pt 4pt;
 	background: hsl(0, 0%, 30%);
 	border-radius: 4px;
+	margin-top: 4pt;
 }
 
 .variable {
@@ -169,6 +171,14 @@ input[type=range]::-webkit-slider-thumb {
 	box-shadow: hsla(0, 0%, 0%, 0.1) 0 2px 2px;
 }
 
+input.key::-webkit-slider-runnable-track {
+	background: hsl(270, 100%, 65%);
+}
+
+input[type=range].key::-webkit-slider-thumb {
+	background: hsl(270, 100%, 50%);
+}
+
 input[type=checkbox]:focus {
 	outline: none;
 }
@@ -178,7 +188,7 @@ input[type=checkbox] {
 	width: 1.5em; height: 1.5em;
 	background: transparent;
 	border: hsl(200, 100%, 50%) 2px solid;
-	vertical-align: bottom;
+	vertical-align: middle;
 	border-radius: 4px;
 }
 
@@ -191,4 +201,8 @@ input[type=checkbox]:checked::before {
 	content: "✓";
 	text-align: center;
 	color: hsl(0, 0%, 10%);
+}
+
+.inline {
+	display: inline-block;
 }
