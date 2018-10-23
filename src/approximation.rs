@@ -9,6 +9,7 @@ use spade::BoundingRect;
 use spade::PointN;
 use spade::SpatialObject;
 
+/// A simple key-value pair. Traits are implemented solely on the key.
 #[derive(Clone, Copy)]
 pub struct KeyValue<K, V>(pub K, pub V);
 
@@ -162,6 +163,10 @@ impl<'a> Equation<'a> {
     }
 }
 
+pub struct Region {
+    pub origin: (f64, f64),
+}
+
 pub struct View {
     pub cols: u16,
     pub rows: u16,
@@ -231,8 +236,7 @@ pub fn adaptive_sample<K: Clone + Metric, V: Clone, F: Fn(f64) -> KeyValue<K, V>
     ts
 }
 
-#[derive(Clone, Copy)]
-pub struct Point2D(pub f64, pub f64);
+pub type Point2D = (f64, f64);
 
 impl Metric for Point2D {
     type Output = OrdFloat;

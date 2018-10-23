@@ -22,12 +22,12 @@ pub mod approximation;
 use approximation::{Interval, View};
 pub use approximation::OrdFloat;
 pub use approximation::Equation;
-use approximators::ReflectionApproximator;
+use reflectors::ReflectionApproximator;
 pub use approximation::adaptive_sample;
 pub use approximation::KeyValue;
 
-pub mod approximators;
-pub use approximators::{RasterisationApproximator, LinearApproximator, QuadraticApproximator};
+pub mod reflectors;
+pub use reflectors::{RasterisationApproximator, LinearApproximator, QuadraticApproximator};
 
 #[wasm_bindgen]
 extern "C" {
@@ -61,10 +61,14 @@ fn construct_equation<'a>(string_x: String, string_y: String) -> Result<Equation
     })
 }
 
+/// Set up the Rust WASM environment. Responsible primarily for setting up the error handlers.
+#[wasm_bindgen]
+pub extern fn initialise() {
+    console_error_panic_hook::set_once();
+}
+
 #[wasm_bindgen]
 pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: String, mirror_x: String, mirror_y: String, method: String, norms: bool, thresh: f64, reflect: bool, glide: f64) -> String {
-    console_error_panic_hook::set_once();
-
     let figure = if let Ok(figure) = construct_equation(figure_x.clone(), figure_y.clone()) {
         figure
     } else {

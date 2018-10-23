@@ -281,6 +281,7 @@ class RustWASMContext {
         const PATH = "target/wasm32-unknown-unknown/release/reflections_bg.wasm";
         return window.wasm_bindgen(`${SERVER}${PATH}`).then(() => {
             performance.mark(PERFORMANCE_MARKERS.WASM_BINDGEN_CONNECT);
+            window.wasm_bindgen.initialise();
         });
     }
 }
