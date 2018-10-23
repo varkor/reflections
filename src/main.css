@@ -10,18 +10,15 @@ body {
 
 main {
 	display: block;
+	position: relative;
 	width: 100%;
 	height: 100%;
-	position: relative;
 }
 
 canvas {
 	position: relative;
 	left: 50%;
 	transform: translateX(-50%);
-	/* position: absolute; */
-	/* left: 50%; top: 50%; */
-	/* transform: translate(-50%, -50%); */
 }
 
 button {
@@ -38,9 +35,6 @@ input[type="text"] {
 	padding: 2pt 4pt;
 	outline: none;
 	vertical-align: middle;
-}
-
-input[type="text"] {
 	margin-bottom: 4px;
 }
 
@@ -54,7 +48,7 @@ input[type="text"].figure:focus {
 }
 
 input[type="text"].figure:focus::selection {
-	background-color: hsl(190, 100%, 30%);
+	background: hsl(190, 100%, 30%);
 }
 
 input[type="text"].mirror {
@@ -67,7 +61,7 @@ input[type="text"].mirror:focus {
 }
 
 input[type="text"].mirror:focus::selection {
-	background-color: hsl(0, 100%, 30%);
+	background: hsl(0, 100%, 30%);
 }
 
 .hidden {

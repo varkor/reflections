@@ -1,26 +1,21 @@
-use std::cmp::Ordering;
-use std::f64::consts::PI;
-use std::collections::{HashSet, HashMap, BinaryHeap};
+use std::collections::HashSet;
 
+use spade::BoundingRect;
+use spade::PointN;
+use spade::PointNExtensions;
+use spade::primitives::SimpleEdge;
 use spade::rtree::RTree;
 use spade::SpatialObject;
-use spade::PointN;
-use spade::BoundingRect;
-use spade::primitives::SimpleEdge;
-use spade::PointNExtensions;
 
-use std::ops::RangeInclusive;
-use std::fmt::Debug;
-use std::cmp::Reverse;
-
-use approximation::{Interval, Metric, Angle, View};
-use approximation::OrdFloat;
-use approximation::Equation;
+use approximation::{Interval, View};
 use approximation::adaptive_sample;
+use approximation::Equation;
 use approximation::KeyValue;
+use approximation::OrdFloat;
 use approximation::SpatialObjectWithPayload;
-use approximation::Point2D;
 
+/// A `ReflectionApproximator` provides a method to approximate points lying along the reflection
+/// of a `figure` equation in a `mirror` equation.
 pub trait ReflectionApproximator {
     fn approximate_reflection(
         &self,
@@ -31,6 +26,9 @@ pub trait ReflectionApproximator {
     ) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>);
 }
 
+/// Approximation of a reflection using a rasterisation technique: splitting the view up into a grid
+/// and sampling cells to find those containing points in the reflection. This tends to be accurate,
+/// but can be slow for finer grids.
 pub struct RasterisationApproximator;
 
 impl ReflectionApproximator for RasterisationApproximator {
@@ -42,7 +40,8 @@ impl ReflectionApproximator for RasterisationApproximator {
         view: &View,
     ) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
         let mut grid = vec![vec![]; (view.cols as usize) * (view.rows as usize)];
-        let mut norms = vec![];
+        let mut normals = vec![];
+
         // Generate the normal mappings.
         for t in interval.iter() {
             let normal = mirror.normal(t);
@@ -54,8 +53,9 @@ impl ReflectionApproximator for RasterisationApproximator {
                     grid[x + y * (view.cols as usize)].push((normal.function)(-s));
                 }
             }
-            norms.push(norm);
+            normals.push(norm);
         }
+
         // Intersect the grid with the figure.
         let mut reflection = HashSet::new();
         for point in figure.sample(&interval) {
@@ -66,7 +66,10 @@ impl ReflectionApproximator for RasterisationApproximator {
                 }
             }
         }
-        (reflection.iter().map(|(x, y)| (f64::from_bits(*x), f64::from_bits(*y))).collect(), norms)
+
+        (reflection.into_iter().map(|(x, y)| {
+            (f64::from_bits(x), f64::from_bits(y))
+        }).collect(), normals)
     }
 }
 
@@ -77,14 +80,14 @@ impl ReflectionApproximator for QuadraticApproximator {
         &self,
         mirror: &Equation,
         figure: &Equation,
-        interval: &Interval,
-        view: &View,
+        _interval: &Interval,
+        _: &View,
     ) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
         let mut pairs = vec![];
         let norms = vec![];
 
-        let range = interval.start..=interval.end;
-        let samples = ((interval.end - interval.start) / interval.step) as u64 + 1;
+        // let range = interval.start..=interval.end;
+        // let samples = ((interval.end - interval.start) / interval.step) as u64 + 1;
 
         #[derive(Clone, Debug)]
         struct Quad<V: PointN + Copy> {
@@ -191,8 +194,6 @@ impl ReflectionApproximator for QuadraticApproximator {
                 for i in 0..wins1.len() {
                     let (l, r) = (wins1[i], wins2[i]);
                     if let (&[s11, s12], &[s21, s22]) = (l, r) {
-                        // println!("add quad {:?} {:?} {:?} {:?}", ((s11.0).0, (s11.0).1), ((s12.0).0, (s12.0).1), ((s22.0).0, (s22.0).1), ((s21.0).0, (s21.0).1));
-                        // println!("{:?} {:?} {:?} {:?}", s11.2, s12.2, s22.2, s21.2);
                         let mut quad = Quad::new([
                             [(s11.0).0, (s11.0).1],
                             [(s12.0).0, (s12.0).1],
@@ -258,24 +259,6 @@ impl ReflectionApproximator for QuadraticApproximator {
                 let (bx, by) = (v4.0 + bdx * b, v4.1 + bdy * b);
                 let (x, y) = (a_factor * ax + b_factor * bx, a_factor * ay + b_factor * by);
                 reflection.insert((x.to_bits(), y.to_bits()));
-
-                // fn calc(p: &[f64; 2], q: &[f64; 2]) -> f64 {
-                //     (quad.diam - p.sub(&q).length2().sqrt()) / quad.diam
-                // }
-                // // find distance of point to each of four vertices
-                // let dis_s11 = calc(p, &quad.points[0]);
-                // let dis_s12 = calc(p, &quad.points[1]);
-                // let dis_s22 = calc(p, &quad.points[2]);
-                // let dis_s21 = calc(p, &quad.points[3]);
-                // let dis_sum = (dis_s11 + dis_s12 + dis_s22 + dis_s21) / (4 * quad.diam);
-                // // make a weighted average of vs
-                // // let weight = [
-                // //     (v1.0 * dis_s11 + v2.0 * dis_s12 + v3.0 * dis_s22 + v4.0 * dis_s21) / dis_sum,
-                // //     (v1.1 * dis_s11 + v2.1 * dis_s12 + v3.1 * dis_s22 + v4.1 * dis_s21) / dis_sum,
-                // // ];
-                // let weight = [(v1.0 + v2.0 + v3.0 + v4.0) / 4.0, (v1.1 + v2.1 + v3.1 + v4.1) / 4.0];
-                // let [x, y] = weight;
-                // reflection.insert((x.to_bits(), y.to_bits()));
             }
         }
 
@@ -291,13 +274,13 @@ impl ReflectionApproximator for LinearApproximator {
         mirror: &Equation,
         figure: &Equation,
         interval: &Interval,
-        view: &View,
+        _view: &View,
     ) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
         let mut pairs = vec![];
         let mut norms = vec![];
 
-        let range = interval.start..=interval.end;
-        let samples = ((interval.end - interval.start) / interval.step) as u64 + 1;
+        let _range = interval.start..=interval.end;
+        let _samples = ((interval.end - interval.start) / interval.step) as u64 + 1;
 
         for t in (Interval { start: -256.0, end: 256.0, step: 1.0 }).iter() {
             let normal = mirror.normal(t);
@@ -327,7 +310,7 @@ impl ReflectionApproximator for LinearApproximator {
 
         let mut reflection = HashSet::new();
 
-        let figure_sample = adaptive_sample(
+        /*let figure_sample = adaptive_sample(
             |t| {
                 // log(&format!("{:?}", t));
                 let (x, y) = (figure.function)(t);
@@ -335,7 +318,7 @@ impl ReflectionApproximator for LinearApproximator {
             },
             &range,
             samples,
-        );
+        );*/
         let interval_sample = figure.sample(&(Interval { start: -256.0, end: 256.0, step: 1.0 }));
 
         let threshold = self.0.sqrt();

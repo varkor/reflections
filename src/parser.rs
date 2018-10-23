@@ -1,17 +1,17 @@
-use std::vec::IntoIter;
-use std::mem;
-use std::fmt;
 use std::collections::HashMap;
+use std::fmt;
+use std::mem;
+use std::str::FromStr;
+use std::vec::IntoIter;
 
-#[allow(unused_imports)]
-use log;
-
-macro_rules! try_block {
-    ($($block:tt)*) => (
-        (|| { ::std::ops::Try::from_ok({ $($block)* }) })()
-    )
+/// String matching varieties: prefix or exact match.
+#[derive(PartialEq)]
+enum MatchKind {
+    Prefix,
+    All,
 }
 
+/// A lexical unit.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
     End,
@@ -26,27 +26,17 @@ pub enum Token {
     Exp,
 }
 
-#[derive(Debug)]
-pub struct Lexeme {
-    kind: Token,
-    string: String,
-}
-
-#[derive(PartialEq)]
-enum MatchKind {
-    Prefix,
-    All,
-}
-
 impl Token {
+    /// A collection of all the non-special tokens, to facilitate longest-prefix matching.
     fn all() -> Vec<Token> {
         use self::Token::*;
 
-        // Tokens with values are given dummy values, as they're simply used for matching purposes.
+        // Tokens with values are given default dummy values, as the tokens are only used for
+        // matching on the type.
         vec![
-            // `End` is deliberately not included as it is created implicitly.
-            Number(0.0),
-            Name(String::new()),
+            // `End` is deliberately not included, as a special token that is created implicitly.
+            Number(Default::default()),
+            Name(Default::default()),
             OpenParen,
             CloseParen,
             Add,
@@ -57,22 +47,24 @@ impl Token {
         ]
     }
 
+    /// Tests whether a string is valid for a specific token.
     fn matches(&self, s: &str, kind: MatchKind) -> bool {
         use self::Token::*;
 
         match (self, s) {
             // Empty strings are trivially prefixes of every token.
-            (_, "") => true,
+            (_, "") => kind == MatchKind::Prefix,
 
             // Literal tokens.
-            (OpenParen, "(") => true,
-            (CloseParen, ")") => true,
-            (Add, "+") => true,
-            (Sub, "-") => true,
-            (Mul, "*") => true,
-            (Div, "/") => true,
+            (OpenParen, "(") |
+            (CloseParen, ")") |
+            (Add, "+") |
+            (Sub, "-") |
+            (Mul, "*") |
+            (Div, "/") |
             (Exp, "^") => true,
 
+            // Numeric tokens.
             (Number(_), s) => {
                 #[derive(PartialEq)]
                 enum State { Integer, Dot, Fractional }
@@ -97,29 +89,34 @@ impl Token {
                 }) && (kind == MatchKind::Prefix || state != State::Dot)
             }
 
-            (Name(_), s) => {
-                s.chars().all(|c| c.is_ascii_alphabetic() && c.is_ascii_lowercase())
-            }
+            // Textual tokens (e.g. variables and functions).
+            (Name(_), s) => s.chars().all(|c| c.is_ascii_alphabetic() && c.is_ascii_lowercase()),
 
             _ => false,
         }
     }
 }
 
+/// A token together with the string to which it corresponds.
+#[derive(Debug)]
+pub struct Lexeme {
+    kind: Token,
+    string: String,
+}
+
+/// Facilitates converting textual input into tokens.
 pub struct Lexer;
 
 impl Lexer {
-    pub fn scan(chars: Vec<char>) -> Result<Vec<Lexeme>, String> {
-        let mut s;
-        let mut states;
+    /// Convert a stream of characters into a stream of lexemes.
+    pub fn scan(chars: impl Iterator<Item = char>) -> Result<Vec<Lexeme>, String> {
         let mut lexemes = vec![];
-
-        let mut chars = chars.into_iter().peekable();
-
+        let mut chars = chars.peekable();
         let mut end = false;
+
         while !end {
-            s = String::new();
-            states = Token::all();
+            let mut s = String::new();
+            let mut states = Token::all();
 
             end = loop {
                 if let Some(&c) = chars.peek() {
@@ -170,20 +167,14 @@ impl Lexer {
         Ok(lexemes)
     }
 
-    pub fn evaluate(lexemes: Vec<Lexeme>) -> Vec<Token> {
-        let mut tokens = vec![];
-
-        use self::Token::*;
-
-        for l in lexemes.into_iter() {
-            tokens.push(match l.kind {
-                Number(_) => Number(l.string.parse().unwrap()),
-                Name(_) => Name(l.string),
+    pub fn evaluate(lexemes: impl Iterator<Item = Lexeme>) -> impl Iterator<Item = Token> {
+        lexemes.map(|l| {
+            match l.kind {
+                Token::Number(_) => Token::Number(l.string.parse().unwrap()),
+                Token::Name(_) => Token::Name(l.string),
                 _ => l.kind,
-            });
-        }
-
-        tokens
+            }
+        })
     }
 }
 
@@ -211,34 +202,109 @@ impl Parser<IntoIter<Token>> {
     }
 }
 
+/// The various precedences for operations.
 #[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
 enum Precedence {
     Additive,
     Multiplicative,
     Exponential,
-    Last,
 }
 
 impl Precedence {
-    fn next(&self) -> Precedence {
-        use self::Precedence::*;
-        match self {
-            Additive => Multiplicative,
-            Multiplicative => Exponential,
-            Exponential => Last,
-            Last => panic!("tried to get a precedence after the last"),
-        }
+    /// The lowest precedence level (i.e. the one that binds least tightly).
+    fn lowest() -> Precedence {
+        Precedence::Additive
     }
 
+    /// The next highest precedence, or `None` if there are no higher precedence levels.
+    fn next(&self) -> Option<Precedence> {
+        Some(match self {
+            Precedence::Additive => Precedence::Multiplicative,
+            Precedence::Multiplicative => Precedence::Exponential,
+            Precedence::Exponential => return None,
+        })
+    }
+
+    /// Whether operators of this precedence are left-associative.
     fn left_associative(&self) -> bool {
-        use self::Precedence::*;
         match self {
-            Additive => true,
-            Multiplicative => true,
-            Exponential => false,
-            Last => panic!("tried to get the associativity of an unknown precedence"),
+            Precedence::Additive |
+            Precedence::Multiplicative => true,
+
+            Precedence::Exponential => false,
         }
     }
+}
+
+/// A mathematical function.
+pub enum Function {
+    Sin,
+    Cos,
+    Tan,
+    Asin,
+    Acos,
+    Atan,
+    Sinh,
+    Cosh,
+    Tanh,
+    Asinh,
+    Acosh,
+    Atanh,
+}
+
+impl FromStr for Function {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "sin" => Function::Sin,
+            "cos" => Function::Cos,
+            "tan" => Function::Tan,
+            "asin" => Function::Asin,
+            "acos" => Function::Acos,
+            "atan" => Function::Atan,
+            "sinh" => Function::Sinh,
+            "cosh" => Function::Cosh,
+            "tanh" => Function::Tanh,
+            "asinh" => Function::Asinh,
+            "acosh" => Function::Acosh,
+            "atanh" => Function::Atanh,
+            _ => return Err(()),
+        })
+    }
+}
+
+impl fmt::Display for Function {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", match self {
+            Function::Sin => "sin",
+            Function::Cos => "cos",
+            Function::Tan => "tan",
+            Function::Asin => "asin",
+            Function::Acos => "acos",
+            Function::Atan => "atan",
+            Function::Sinh => "sinh",
+            Function::Cosh => "cosh",
+            Function::Tanh => "tanh",
+            Function::Asinh => "asinh",
+            Function::Acosh => "acosh",
+            Function::Atanh => "atanh",
+        })
+    }
+}
+
+impl fmt::Debug for Function {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+/// A handy macro while `try` is unavailable: returns the first `Err` or the trailing expression if
+/// `Ok`.
+macro_rules! try_block {
+    ($($block:tt)*) => (
+        (|| { ::std::ops::Try::from_ok({ $($block)* }) })()
+    )
 }
 
 impl<I: Iterator<Item = Token> + Clone> Parser<I> {
@@ -246,8 +312,11 @@ impl<I: Iterator<Item = Token> + Clone> Parser<I> {
         Err(())
     }
 
+    /// Advance a single token.
     fn bump(&mut self) {
         if let Token::End = self.token {
+            // This signals a flaw in the parser rather than an issue with the input, so crashing
+            // is appropriate.
             panic!("tried to bump past end of input");
         }
 
@@ -255,6 +324,7 @@ impl<I: Iterator<Item = Token> + Clone> Parser<I> {
         self.token = self.tokens.next().unwrap_or(Token::End);
     }
 
+    /// Check that the current token precisely matches the one given.
     fn check(&self, t: Token) -> ParseResult<()> {
         if self.token == t {
             Ok(())
@@ -263,12 +333,14 @@ impl<I: Iterator<Item = Token> + Clone> Parser<I> {
         }
     }
 
+    /// Check that the current token matches the one given and advance to the next token.
     fn eat(&mut self, t: Token) -> ParseResult<()> {
         self.check(t)?;
         self.bump();
         Ok(())
     }
 
+    /// Check that we've reached the end of input.
     fn check_end(&self) -> ParseResult<()> {
         if let Token::End = self.token {
             Ok(())
@@ -277,25 +349,31 @@ impl<I: Iterator<Item = Token> + Clone> Parser<I> {
         }
     }
 
+    /// Return the current state of the parser for backtracking.
     fn save(&self) -> Self {
         (*self).clone()
     }
 
+    /// Load a previously-saved parser state for backtracking.
     fn restore(&mut self, save: Self) {
         mem::replace(self, save);
     }
 
-    pub fn parse_equation(&mut self) -> ParseResult<Expr> {
-        let expr = self.parse_expr(Precedence::Additive)?;
+    /// The top-level parsing method.
+    pub fn parse(&mut self) -> ParseResult<Expr> {
+        let expr = self.parse_expr()?;
         self.check_end()?;
         Ok(expr)
     }
 
+    /// E_0 ::= E_1 E_0'
+    fn parse_expr(&mut self) -> ParseResult<Expr> {
+        self.parse_expr_with_precedence(Some(Precedence::lowest()))
+    }
+
     // E_i ::= E_{i + 1} E_i'
-    fn parse_expr(&mut self, precedence: Precedence) -> ParseResult<Expr> {
-        if let Precedence::Last = precedence {
-            self.parse_term()
-        } else {
+    fn parse_expr_with_precedence(&mut self, precedence: Option<Precedence>) -> ParseResult<Expr> {
+        if let Some(precedence) = precedence {
             let mut subexpr = self.parse_op_expr(precedence)?;
             let mut expr_suffix = self.parse_expr_suffix(precedence)?;
 
@@ -317,6 +395,8 @@ impl<I: Iterator<Item = Token> + Clone> Parser<I> {
             }
 
             Ok(subexpr)
+        } else {
+            self.parse_term()
         }
     }
 
@@ -327,7 +407,7 @@ impl<I: Iterator<Item = Token> + Clone> Parser<I> {
         let op_expr: ParseResult<_> = try_block! {
             ExprSuffix::Chain {
                 op: self.parse_bin_op(precedence)?,
-                expr: self.parse_expr(precedence.next())?,
+                expr: self.parse_expr_with_precedence(precedence.next())?,
                 suffix: box self.parse_expr_suffix(precedence)?,
             }
         };
@@ -341,7 +421,7 @@ impl<I: Iterator<Item = Token> + Clone> Parser<I> {
     // P_i ::= U E_i | E_i
     fn parse_op_expr(&mut self, precedence: Precedence) -> ParseResult<Expr> {
         let prefix_op = self.parse_prefix_un_op(precedence);
-        let subexpr = self.parse_expr(precedence.next())?;
+        let subexpr = self.parse_expr_with_precedence(precedence.next())?;
         if let Ok(op) = prefix_op {
             Ok(Expr::UnOp(op, box subexpr))
         } else {
@@ -361,28 +441,20 @@ impl<I: Iterator<Item = Token> + Clone> Parser<I> {
 
     // O ::= + | - | * | / | ^
     fn parse_bin_op(&mut self, precedence: Precedence) -> ParseResult<BinOp> {
-        use self::Token::*;
-        use self::Precedence::*;
-        let ops = match precedence {
-            Additive => vec![(Add, BinOp::Add), (Sub, BinOp::Sub)],
-            Multiplicative => vec![(Mul, BinOp::Mul), (Div, BinOp::Div)],
-            Exponential => vec![(Exp, BinOp::Exp)],
-            Last => panic!("tried to get binary operations with unknown precedence"),
-        };
-        self.parse_op(ops)
+        self.parse_op(match precedence {
+            Precedence::Additive => vec![(Token::Add, BinOp::Add), (Token::Sub, BinOp::Sub)],
+            Precedence::Multiplicative => vec![(Token::Mul, BinOp::Mul), (Token::Div, BinOp::Div)],
+            Precedence::Exponential => vec![(Token::Exp, BinOp::Exp)],
+        })
     }
 
     // U ::= -
     fn parse_prefix_un_op(&mut self, precedence: Precedence) -> ParseResult<UnOp> {
-        use self::Token::*;
-        use self::Precedence::*;
-        let ops = match precedence {
-            Additive => vec![(Sub, UnOp::Minus)],
-            Multiplicative => vec![],
-            Exponential => vec![],
-            Last => panic!("tried to get unary operations with unknown precedence"),
-        };
-        self.parse_op(ops)
+        self.parse_op(match precedence {
+            Precedence::Additive => vec![(Token::Sub, UnOp::Minus)],
+            Precedence::Multiplicative => vec![],
+            Precedence::Exponential => vec![],
+        })
     }
 
     // T ::= ( E ) | V | X
@@ -392,7 +464,7 @@ impl<I: Iterator<Item = Token> + Clone> Parser<I> {
 
         let parenthesised_expr: ParseResult<_> = try_block! {
             self.eat(Token::OpenParen)?;
-            let expr = self.parse_expr(Precedence::Additive)?;
+            let expr = self.parse_expr()?;
             self.eat(Token::CloseParen)?;
             expr
         };
@@ -412,41 +484,32 @@ impl<I: Iterator<Item = Token> + Clone> Parser<I> {
 
     // F ::= ('a' ..= 'z')+ ( E_0 )
     fn parse_function(&mut self) -> ParseResult<Expr> {
-        let token = self.token.clone();
-        match token {
+        let f = match self.token {
             Token::Name(ref n) if n.len() > 1 => {
-                self.check_function_name(n)?;
-                self.bump();
-                self.eat(Token::OpenParen)?;
-                let expr = self.parse_expr(Precedence::Additive)?;
-                self.eat(Token::CloseParen)?;
-                Ok(Expr::Function(n.clone(), box expr))
+                Function::from_str(&n)?
             }
-            _ => Self::err(),
-        }
+            _ => return Self::err(),
+        };
+        self.bump();
+        self.eat(Token::OpenParen)?;
+        let expr = self.parse_expr()?;
+        self.eat(Token::CloseParen)?;
+        Ok(Expr::Function(f, box expr))
     }
 
-    fn check_function_name(&self, name: &String) -> ParseResult<()> {
-        if ["sin", "cos", "tan"].contains(&name.as_ref()) {
-            Ok(())
-        } else {
-            Err(())
-        }
-    }
-
-    // V ::= 'a' ..= 'z'
+    /// Parse a variable: a single alphabetic character.
     fn parse_var(&mut self) -> ParseResult<Expr> {
-        let token = self.token.clone();
-        match token {
+        let n = match self.token {
             Token::Name(ref n) if n.len() == 1 => {
-                self.bump();
-                Ok(Expr::Var(n.clone()))
+                n.clone()
             }
-            _ => Self::err(),
-        }
+            _ => return Self::err(),
+        };
+        self.bump();
+        Ok(Expr::Var(n))
     }
 
-    // X ::= /\d+(\.\d+)?/
+    /// Parse a numeric value (integral or floating-point).
     fn parse_value(&mut self) -> ParseResult<Expr> {
         match self.token {
             Token::Number(v) => {
@@ -458,29 +521,35 @@ impl<I: Iterator<Item = Token> + Clone> Parser<I> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum BinOp {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Exp,
-}
-
+/// The unary operators.
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum UnOp {
-    Minus,
+    Minus, // `-`
 }
 
+/// The binary operators.
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum BinOp {
+    Add, // `+`
+    Sub, // `-`
+    Mul, // `*`
+    Div, // `/`
+    Exp, // `^`
+}
+
+/// A mathematical expression.
 #[derive(Debug)]
 pub enum Expr {
     Number(f64),
     Var(String),
     UnOp(UnOp, Box<Expr>),
     BinOp(BinOp, Box<Expr>, Box<Expr>),
-    Function(String, Box<Expr>),
+    Function(Function, Box<Expr>),
 }
 
+/// An expression suffix represents a chain of operators and subexpressions, allowing us to parse
+/// chains of left-associative operators and operands. This is necessary to derive left-associative
+/// expressions while avoiding left recursion.
 #[derive(Debug)]
 enum ExprSuffix {
     Chain {
@@ -492,38 +561,49 @@ enum ExprSuffix {
 }
 
 impl Expr {
+    /// Evaluate a numeric expression, given a set of variable bindings.
     pub fn evaluate(&self, bindings: &HashMap<char, f64>) -> f64 {
-        use self::Expr::*;
-
         match self {
-            Number(x) => *x,
-            Var(v) => {
+            &Expr::Number(x) => x,
+            Expr::Var(v) => {
                 if let Some(&x) = bindings.get(&v.chars().next().unwrap()) {
                     x
                 } else {
                     panic!("no binding for {}", v);
                 }
             }
-            UnOp(self::UnOp::Minus, x) => -x.evaluate(bindings),
-            BinOp(op, lhs, rhs) => {
-                use self::BinOp::*;
+            Expr::UnOp(op, x) => {
+                let x = x.evaluate(bindings);
+                match op {
+                    UnOp::Minus => -x,
+                }
+            }
+            Expr::BinOp(op, lhs, rhs) => {
                 let lhs = lhs.evaluate(bindings);
                 let rhs = rhs.evaluate(bindings);
                 match op {
-                    Add => lhs + rhs,
-                    Sub => lhs - rhs,
-                    Mul => lhs * rhs,
-                    Div => lhs / rhs,
-                    Exp => lhs.powf(rhs),
+                    BinOp::Add => lhs + rhs,
+                    BinOp::Sub => lhs - rhs,
+                    BinOp::Mul => lhs * rhs,
+                    BinOp::Div => lhs / rhs,
+                    BinOp::Exp => lhs.powf(rhs),
                 }
             }
-            Function(f, x) => {
+            Expr::Function(f, x) => {
                 let x = x.evaluate(bindings);
-                match f.as_ref() {
-                    "sin" => x.sin(),
-                    "cos" => x.cos(),
-                    "tan" => x.tan(),
-                    _ => panic!("unknown function {}", f),
+                match f {
+                    Function::Sin => x.sin(),
+                    Function::Cos => x.cos(),
+                    Function::Tan => x.tan(),
+                    Function::Asin => x.asin(),
+                    Function::Acos => x.acos(),
+                    Function::Atan => x.atan(),
+                    Function::Sinh => x.sinh(),
+                    Function::Cosh => x.cosh(),
+                    Function::Tanh => x.tanh(),
+                    Function::Asinh => x.asinh(),
+                    Function::Acosh => x.acosh(),
+                    Function::Atanh => x.atanh(),
                 }
             }
         }
@@ -532,24 +612,26 @@ impl Expr {
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use self::Expr::*;
-
         match self {
-            Number(x) => write!(f, "{}", x),
-            UnOp(self::UnOp::Minus, x) => write!(f, "(-{})", x),
-            BinOp(op, lhs, rhs) => {
-                use self::BinOp::*;
+            Expr::Number(x) => write!(f, "{}", x),
+            Expr::Var(v) => write!(f, "{}", v),
+            Expr::UnOp(op, x) => {
                 let op = match op {
-                    Add => "+",
-                    Sub => "-",
-                    Mul => "*",
-                    Div => "/",
-                    Exp => "^",
+                    UnOp::Minus => "-",
+                };
+                write!(f, "({}{})", op, x)
+            }
+            Expr::BinOp(op, lhs, rhs) => {
+                let op = match op {
+                    BinOp::Add => "+",
+                    BinOp::Sub => "-",
+                    BinOp::Mul => "*",
+                    BinOp::Div => "/",
+                    BinOp::Exp => "^",
                 };
                 write!(f, "({} {} {})", lhs, op, rhs)
             }
-            Var(v) => write!(f, "{}", v),
-            Function(fun, x) => write!(f, "{}({})", fun, x),
+            Expr::Function(fun, x) => write!(f, "{}({})", fun, x),
         }
     }
 }

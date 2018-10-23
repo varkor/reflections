@@ -1,17 +1,13 @@
 use std::cmp::Ordering;
-use std::f64::consts::PI;
-use std::collections::{HashSet, HashMap, BinaryHeap};
-
-use spade::rtree::RTree;
-use spade::SpatialObject;
-use spade::PointN;
-use spade::BoundingRect;
-use spade::primitives::SimpleEdge;
-use spade::PointNExtensions;
-
-use std::ops::RangeInclusive;
-use std::fmt::Debug;
 use std::cmp::Reverse;
+use std::collections::BinaryHeap;
+use std::f64::consts::PI;
+use std::fmt::Debug;
+use std::ops::RangeInclusive;
+
+use spade::BoundingRect;
+use spade::PointN;
+use spade::SpatialObject;
 
 #[derive(Clone, Copy)]
 pub struct KeyValue<K, V>(pub K, pub V);
@@ -81,7 +77,7 @@ pub trait Metric {
 impl Metric for () {
     type Output = ();
 
-    fn distance(&self, other: &Self) -> Self::Output {
+    fn distance(&self, _: &Self) -> Self::Output {
         ()
     }
 }
@@ -222,7 +218,6 @@ pub fn adaptive_sample<K: Clone + Metric, V: Clone, F: Fn(f64) -> KeyValue<K, V>
     add_segment(&mut pq, min, max);
 
     while (ts.len() as u64) < samples {
-        // println!("loop");
         // Get the segment with the largest distance.
         let KeyValue(distance, (low, high)) = pq.pop().unwrap();
         // Get the midpoint of the segment.

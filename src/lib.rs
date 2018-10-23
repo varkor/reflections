@@ -1,38 +1,25 @@
-#![feature(box_syntax)]
 #![feature(try_trait)]
 #![feature(self_struct_ctor)]
 #![feature(euclidean_division)]
+#![feature(box_syntax)]
 
-#![allow(dead_code)]
-#![allow(unused_imports)]
-#![allow(unused_variables)]
 #![deny(bare_trait_objects)]
 
-#[macro_use]
-extern crate serde_json;
 extern crate wasm_bindgen;
 extern crate spade;
+#[macro_use]
+extern crate serde_json;
 extern crate console_error_panic_hook;
 
-use wasm_bindgen::prelude::*;
-use spade::rtree::RTree;
-use spade::SpatialObject;
-use spade::PointN;
-use spade::BoundingRect;
-use spade::primitives::SimpleEdge;
-use spade::PointNExtensions;
+use wasm_bindgen::prelude::wasm_bindgen;
 
-use std::collections::{HashSet, HashMap, BinaryHeap};
-use std::cmp::Ordering;
-use std::ops::RangeInclusive;
-use std::fmt::Debug;
-use std::cmp::Reverse;
+use std::collections::HashMap;
 
 pub mod parser;
 use parser::{Lexer, Parser};
 
 pub mod approximation;
-use approximation::{Interval, Metric, Angle, View};
+use approximation::{Interval, View};
 pub use approximation::OrdFloat;
 pub use approximation::Equation;
 use approximators::ReflectionApproximator;
@@ -44,15 +31,19 @@ pub use approximators::{RasterisationApproximator, LinearApproximator, Quadratic
 
 #[wasm_bindgen]
 extern "C" {
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
+    #[wasm_bindgen(js_namespace = console, js_name = log)]
+    fn console_log(s: &str);
+}
+
+macro_rules! console_log {
+    ($($t:tt)*) => (console_log(&format_args!($($t)*).to_string()))
 }
 
 fn parse_equation(string: String) -> Result<parser::Expr, ()> {
-    if let Ok(lexemes) = Lexer::scan(string.chars().collect()) {
-        let tokens = Lexer::evaluate(lexemes);
+    if let Ok(lexemes) = Lexer::scan(string.chars()) {
+        let tokens = Lexer::evaluate(lexemes.into_iter()).collect();
         let mut parser = Parser::new(tokens);
-        parser.parse_equation()
+        parser.parse()
     } else {
         Err(())
     }
@@ -77,13 +68,13 @@ pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: Strin
     let figure = if let Ok(figure) = construct_equation(figure_x.clone(), figure_y.clone()) {
         figure
     } else {
-        log(&format!("error parsing figure {:?}", (figure_x, figure_y)));
+        console_log!("error parsing figure {:?}", (figure_x, figure_y));
         return String::new();
     };
     let mirror = if let Ok(mirror) = construct_equation(mirror_x.clone(), mirror_y.clone()) {
         mirror
     } else {
-        log(&format!("error parsing mirror {:?}", (mirror_x, mirror_y)));
+        console_log!("error parsing mirror {:?}", (mirror_x, mirror_y));
         return String::new();
     };
 
