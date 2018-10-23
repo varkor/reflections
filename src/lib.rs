@@ -18,6 +18,8 @@ use std::collections::HashMap;
 pub mod parser;
 use parser::{Lexer, Parser};
 
+pub mod spatial;
+
 pub mod approximation;
 use approximation::{Interval, View};
 // pub use approximation::OrdFloat;

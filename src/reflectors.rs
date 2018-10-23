@@ -12,7 +12,7 @@ use approximation::{Interval, View};
 use approximation::Equation;
 // use approximation::KeyValue;
 use approximation::OrdFloat;
-use approximation::SpatialObjectWithData;
+use spatial::SpatialObjectWithData;
 
 /// A `ReflectionApproximator` provides a method to approximate points lying along the reflection
 /// of a `figure` equation in a `mirror` equation.
@@ -261,8 +261,6 @@ impl ReflectionApproximator for QuadraticApproximator {
 
             let p = &[x, y];
             for SpatialObjectWithData(quad, (v1, v2, v3, v4)) in rtree.lookup_in_circle(p, &0.0) {
-
-
                 let a = projection_on_edge(&quad.edges[0], p) / quad.edges[0].length2();
                 let a_dis = quad.edges[0].distance2(p);
                 let b = 1.0 - projection_on_edge(&quad.edges[2], p) / quad.edges[2].length2();
