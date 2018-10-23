@@ -1,38 +1,39 @@
 use std::cmp::Ordering;
-use std::cmp::Reverse;
-use std::collections::BinaryHeap;
-use std::f64::consts::PI;
-use std::fmt::Debug;
-use std::ops::RangeInclusive;
+// use std::cmp::Reverse;
+// use std::collections::BinaryHeap;
+// use std::f64::consts::PI;
+// use std::fmt::Debug;
+// use std::ops::RangeInclusive;
 
 use spade::BoundingRect;
 use spade::PointN;
 use spade::SpatialObject;
 
 /// A simple key-value pair. Traits are implemented solely on the key.
-#[derive(Clone, Copy)]
-pub struct KeyValue<K, V>(pub K, pub V);
+// #[derive(Clone, Copy)]
+// pub struct KeyValue<K, V>(pub K, pub V);
 
-impl<K: PartialEq, V> PartialEq for KeyValue<K, V> {
-    fn eq(&self, other: &KeyValue<K, V>) -> bool {
-        self.0.eq(&other.0)
-    }
-}
+// impl<K: PartialEq, V> PartialEq for KeyValue<K, V> {
+//     fn eq(&self, other: &KeyValue<K, V>) -> bool {
+//         self.0.eq(&other.0)
+//     }
+// }
 
-impl<K: Eq, V> Eq for KeyValue<K, V> {}
+// impl<K: Eq, V> Eq for KeyValue<K, V> {}
 
-impl<K: PartialOrd, V> PartialOrd for KeyValue<K, V> {
-    fn partial_cmp(&self, other: &KeyValue<K, V>) -> Option<Ordering> {
-        self.0.partial_cmp(&other.0)
-    }
-}
+// impl<K: PartialOrd, V> PartialOrd for KeyValue<K, V> {
+//     fn partial_cmp(&self, other: &KeyValue<K, V>) -> Option<Ordering> {
+//         self.0.partial_cmp(&other.0)
+//     }
+// }
 
-impl<K: Ord, V> Ord for KeyValue<K, V> {
-    fn cmp(&self, other: &KeyValue<K, V>) -> Ordering {
-        self.0.cmp(&other.0)
-    }
-}
+// impl<K: Ord, V> Ord for KeyValue<K, V> {
+//     fn cmp(&self, other: &KeyValue<K, V>) -> Ordering {
+//         self.0.cmp(&other.0)
+//     }
+// }
 
+/// A closed interval; essentially a floating-point `RangeInclusive` with some convenience methods.
 #[derive(Clone)]
 pub struct Interval {
     pub start: f64,
@@ -54,51 +55,72 @@ impl Iterator for Interval {
     }
 }
 
-pub trait Metric {
-    type Output: Ord;
+/// A metric: a function defining a distance between two objects.
+// pub trait Metric {
+//     type Output: Ord;
 
-    fn distance(&self, &Self) -> Self::Output;
-}
+//     fn distance(&self, &Self) -> Self::Output;
+// }
 
-impl Metric for () {
-    type Output = ();
+// impl Metric for () {
+//     type Output = ();
 
-    fn distance(&self, _: &Self) -> Self::Output {
-        ()
-    }
-}
+//     fn distance(&self, _: &Self) -> Self::Output {
+//         ()
+//     }
+// }
 
-#[derive(Clone, Copy)]
-pub struct Angle(f64);
+/// An angle in radians. Guaranteed to be in the range [0, 2π).
+// #[derive(Clone, Copy)]
+// pub struct Angle(f64);
 
-impl Angle {
-    pub fn new(a: f64) -> Self {
-        Self(a.mod_euc(2.0 * PI))
-    }
-}
+// const TAU: f64 = 2.0 * PI;
 
-impl Metric for Angle {
-    type Output = OrdFloat;
+// impl Angle {
+//     pub fn new(a: f64) -> Self {
+//         Self(a.mod_euc(TAU))
+//     }
+// }
 
-    fn distance(&self, other: &Self) -> Self::Output {
-        OrdFloat(((self.0 - other.0 + PI).mod_euc(2.0 * PI) - PI).abs())
-    }
-}
+// impl Metric for Angle {
+//     type Output = OrdFloat;
 
-impl Metric for f64 {
-    type Output = OrdFloat;
+//     fn distance(&self, other: &Self) -> Self::Output {
+//         OrdFloat(((self.0 - other.0 + PI).mod_euc(TAU) - PI).abs())
+//     }
+// }
 
-    fn distance(&self, other: &Self) -> Self::Output {
-        OrdFloat(self - other)
-    }
-}
+// impl Metric for f64 {
+//     type Output = OrdFloat;
 
+//     fn distance(&self, other: &Self) -> Self::Output {
+//         OrdFloat(self - other)
+//     }
+// }
+
+/// An `f64` that implements `Ord`, when we don't care about NaNs. Specifically, `OrdFloat` is
+/// ordered as `f64`, but treats all NaNs as being equal and less than any other value.
 #[derive(Clone, Copy, Debug)]
 pub struct OrdFloat(pub f64);
 
+impl OrdFloat {
+    pub fn new(x: f64) -> Option<OrdFloat> {
+        if !x.is_nan() {
+            Some(OrdFloat(x))
+        } else {
+            None
+        }
+    }
+}
+
 impl PartialEq for OrdFloat {
     fn eq(&self, other: &OrdFloat) -> bool {
-        self.0.eq(&other.0)
+        if !self.0.is_nan() || !other.0.is_nan() {
+            self.0.eq(&other.0)
+        } else {
+            // All NaNs are considered equal.
+            true
+        }
     }
 }
 
@@ -112,16 +134,22 @@ impl PartialOrd for OrdFloat {
 
 impl Ord for OrdFloat {
     fn cmp(&self, other: &OrdFloat) -> Ordering {
-        self.0.partial_cmp(&other.0).unwrap_or(Ordering::Equal)
+        match (self.0.is_nan(), other.0.is_nan()) {
+            // Non-NaNs are all comparable.
+            (false, false) => self.0.partial_cmp(&other.0).unwrap(),
+            // Otherwise any non-NaN is larger, or two NaNs are equal.
+            (x, y) => y.cmp(&x),
+        }
     }
 }
 
+/// A parametric equation ℝ → ℝ × ℝ.
 pub struct Equation<'a> {
-    pub function: Box<dyn 'a + Fn(f64) -> (f64, f64)>,
+    pub function: Box<dyn 'a + Fn(f64) -> Point2D>,
 }
 
 impl<'a> Equation<'a> {
-    pub fn sample(&self, interval: &Interval) -> Vec<(f64, f64)> {
+    pub fn sample(&self, interval: &Interval) -> Vec<Point2D> {
         interval.clone().map(|t| (self.function)(t)).collect()
     }
 
@@ -134,12 +162,12 @@ impl<'a> Equation<'a> {
         }) }
     }
 
-    pub fn gradient(&self, t: f64) -> Angle {
-        let (dx, dy) = self.derivative(t);
-        Angle::new(dy.atan2(dx))
-    }
+    // pub fn gradient(&self, t: f64) -> Angle {
+    //     let (dx, dy) = self.derivative(t);
+    //     Angle::new(dy.atan2(dx))
+    // }
 
-    pub fn derivative(&self, t: f64) -> (f64, f64) {
+    pub fn derivative(&self, t: f64) -> Point2D {
         let f = &self.function;
         let h = 0.1;
         let (fp, fm) = (f(t + h), f(t - h));
@@ -148,9 +176,9 @@ impl<'a> Equation<'a> {
     }
 }
 
-pub struct Region {
-    pub origin: (f64, f64),
-}
+// pub struct Region {
+//     pub origin: (f64, f64),
+// }
 
 pub struct View {
     pub cols: u16,
@@ -174,67 +202,68 @@ impl View {
 }
 
 // FIXME: replace this with an iterator
-pub fn adaptive_sample<K: Clone + Metric, V: Clone, F: Fn(f64) -> KeyValue<K, V>>(
-    f: F,
-    range: &RangeInclusive<f64>,
-    samples: u64,
-) -> Vec<V>
-    where <K as Metric>::Output: Ord + Debug,
-{
-    // println!("adaptive_sample");
-    assert!(samples >= 2);
+// pub fn adaptive_sample<K: Clone + Metric, V: Clone, F: Fn(f64) -> KeyValue<K, V>>(
+//     f: F,
+//     range: &RangeInclusive<f64>,
+//     samples: u64,
+// ) -> Vec<V>
+//     where <K as Metric>::Output: Ord + Debug,
+// {
+//     // println!("adaptive_sample");
+//     assert!(samples >= 2);
 
-    let mut pq = BinaryHeap::new();
+//     let mut pq = BinaryHeap::new();
 
-    let evaled_pair = |t: f64| -> (f64, KeyValue<K, V>) {
-        (t, f(t))
-    };
+//     let evaled_pair = |t: f64| -> (f64, KeyValue<K, V>) {
+//         (t, f(t))
+//     };
 
-    let mut i = 0;
+//     let mut i = 0;
 
-    let mut add_segment = |
-        pq: &mut BinaryHeap<KeyValue<(<K as Metric>::Output, Reverse<i64>), ((f64, KeyValue<K, V>), (f64, KeyValue<K, V>))>>,
-        low: (f64, KeyValue<K, V>),
-        high: (f64, KeyValue<K, V>),
-    | {
-        pq.push(KeyValue(((&(high.1).0).distance(&(low.1).0), Reverse(i)), (low, high)));
-        i += 1;
-    };
+//     let mut add_segment = |
+//         pq: &mut BinaryHeap<KeyValue<(<K as Metric>::Output, Reverse<i64>), ((f64, KeyValue<K, V>), (f64, KeyValue<K, V>))>>,
+//         low: (f64, KeyValue<K, V>),
+//         high: (f64, KeyValue<K, V>),
+//     | {
+//         pq.push(KeyValue(((&(high.1).0).distance(&(low.1).0), Reverse(i)), (low, high)));
+//         i += 1;
+//     };
 
-    let (t_min, t_max) = range.clone().into_inner();
-    let (min, max) = (evaled_pair(t_min), evaled_pair(t_max));
-    let mut ts = vec![(min.1).1.clone(), (max.1).1.clone()];
+//     let (t_min, t_max) = range.clone().into_inner();
+//     let (min, max) = (evaled_pair(t_min), evaled_pair(t_max));
+//     let mut ts = vec![(min.1).1.clone(), (max.1).1.clone()];
 
-    add_segment(&mut pq, min, max);
+//     add_segment(&mut pq, min, max);
 
-    while (ts.len() as u64) < samples {
-        // Get the segment with the largest distance.
-        let KeyValue(distance, (low, high)) = pq.pop().unwrap();
-        // Get the midpoint of the segment.
-        let mid = evaled_pair(low.0 / 2.0 + high.0 / 2.0);
-        println!("{:?} {:?} {:?} {:?}", distance, low.0, high.0, mid.0);
-        ts.push((mid.1).1.clone());
-        add_segment(&mut pq, low, mid.clone());
-        add_segment(&mut pq, mid, high);
-    }
+//     while (ts.len() as u64) < samples {
+//         // Get the segment with the largest distance.
+//         let KeyValue(distance, (low, high)) = pq.pop().unwrap();
+//         // Get the midpoint of the segment.
+//         let mid = evaled_pair(low.0 / 2.0 + high.0 / 2.0);
+//         println!("{:?} {:?} {:?} {:?}", distance, low.0, high.0, mid.0);
+//         ts.push((mid.1).1.clone());
+//         add_segment(&mut pq, low, mid.clone());
+//         add_segment(&mut pq, mid, high);
+//     }
 
-    ts
-}
+//     ts
+// }
 
 pub type Point2D = (f64, f64);
 
-impl Metric for Point2D {
-    type Output = OrdFloat;
+// impl Metric for Point2D {
+//     type Output = OrdFloat;
 
-    fn distance(&self, other: &Self) -> Self::Output {
-        OrdFloat((self.0 - other.0).powf(2.0) + (self.1 - other.1).powf(2.0))
-    }
-}
+//     fn distance(&self, other: &Self) -> Self::Output {
+//         OrdFloat((self.0 - other.0).powf(2.0) + (self.1 - other.1).powf(2.0))
+//     }
+// }
 
+/// A `SpatialObject` that also carries data. Methods are simply forwarded to the `SpatialObject`.
 #[derive(Clone)]
-pub struct SpatialObjectWithPayload<S: SpatialObject, T>(pub S, pub T);
+pub struct SpatialObjectWithData<S: SpatialObject, T>(pub S, pub T);
 
-impl<S: SpatialObject, T> SpatialObject for SpatialObjectWithPayload<S, T> {
+impl<S: SpatialObject, T> SpatialObject for SpatialObjectWithData<S, T> {
     type Point = <S as SpatialObject>::Point;
 
     fn mbr(&self) -> BoundingRect<Self::Point> {

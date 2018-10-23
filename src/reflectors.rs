@@ -8,11 +8,11 @@ use spade::rtree::RTree;
 use spade::SpatialObject;
 
 use approximation::{Interval, View};
-use approximation::adaptive_sample;
+// use approximation::adaptive_sample;
 use approximation::Equation;
-use approximation::KeyValue;
+// use approximation::KeyValue;
 use approximation::OrdFloat;
-use approximation::SpatialObjectWithPayload;
+use approximation::SpatialObjectWithData;
 
 /// A `ReflectionApproximator` provides a method to approximate points lying along the reflection
 /// of a `figure` equation in a `mirror` equation.
@@ -159,7 +159,7 @@ impl ReflectionApproximator for QuadraticApproximator {
                     wn
                 };
 
-                let min_dis = self.edges.iter().map(|edge| OrdFloat(edge.distance2(point))).min().unwrap().0;
+                let min_dis = self.edges.iter().filter_map(|edge| OrdFloat::new(edge.distance2(point))).min().unwrap().0;
 
                 if winding_number() == 0 {
                     min_dis
@@ -170,18 +170,18 @@ impl ReflectionApproximator for QuadraticApproximator {
         }
 
         // let mut adsamp = adaptive_sample(|t| KeyValue((), t), &(-256.0..=256.0), 513);
-        let mut adsamp = adaptive_sample(|t| {
+        // let mut adsamp = adaptive_sample(|t| {
             // let (x, y) = (mirror.derivative().function)(t);
             // println!("(x,y)={:?} t={} l={}", (x, y), t, [x, y].length2());
             // KeyValue([x, y].length2(), t)
             // KeyValue(mirror.gradient(t), t)
-            KeyValue((), t)
-        }, &(-256.0..=256.0), 513);
-        adsamp.sort_unstable_by_key(|&x| OrdFloat(x));
+            // KeyValue((), t)
+        // }, &(-256.0..=256.0), 513);
+        // adsamp.sort_unstable_by_key(|&x| OrdFloat(x));
 
         let samps1: Vec<_> =
-        // (Interval { start: -256.0, end: 256.0, step: 1.0 }).iter()
-        adsamp.into_iter()
+        (Interval { start: -256.0, end: 256.0, step: 1.0 })
+        // adsamp.into_iter()
 
         .map(|t| {
             println!("{}", t);
@@ -218,7 +218,7 @@ impl ReflectionApproximator for QuadraticApproximator {
                             [(s21.0).0, (s21.0).1],
                         ], 0.0);
                         quad.diam = [1, 2, 3].iter().map(|&i: &usize| OrdFloat(quad.points[0].sub(&quad.points[i]).length2())).max().unwrap().0.sqrt();
-                        pairs.push(SpatialObjectWithPayload(
+                        pairs.push(SpatialObjectWithData(
                             quad,
                             (s11.1, s12.1, s22.1, s21.1),
                         ));
@@ -260,7 +260,7 @@ impl ReflectionApproximator for QuadraticApproximator {
             }
 
             let p = &[x, y];
-            for SpatialObjectWithPayload(quad, (v1, v2, v3, v4)) in rtree.lookup_in_circle(p, &0.0) {
+            for SpatialObjectWithData(quad, (v1, v2, v3, v4)) in rtree.lookup_in_circle(p, &0.0) {
 
 
                 let a = projection_on_edge(&quad.edges[0], p) / quad.edges[0].length2();
@@ -314,13 +314,13 @@ impl ReflectionApproximator for LinearApproximator {
             let windows = samps.windows(2);
             for window in windows {
                 if let &[((x1, y1), v1), ((x2, y2), v2)] = window {
-                    pairs.push(SpatialObjectWithPayload(SimpleEdge::new([x1, y1], [x2, y2]), (v1, v2)));
+                    pairs.push(SpatialObjectWithData(SimpleEdge::new([x1, y1], [x2, y2]), (v1, v2)));
                 }
             }
             // for s in interval.clone() {
             //     let (x, y) = (normal.function)(s);
             //     norm.push((x, y));
-            //     pairs.push(SpatialObjectWithPayload([x, y], (normal.function)(-s)));
+            //     pairs.push(SpatialObjectWithData([x, y], (normal.function)(-s)));
             // }
             norms.push(norm);
         }
@@ -354,7 +354,7 @@ impl ReflectionApproximator for LinearApproximator {
 
         for (x, y) in fs {
             let p = &[x, y];
-            for SpatialObjectWithPayload(fig, (v1, v2)) in rtree.lookup_in_circle(p, &threshold) {
+            for SpatialObjectWithData(fig, (v1, v2)) in rtree.lookup_in_circle(p, &threshold) {
                 // find closest point (x, y) on line as param from 0 to 1
                 let s = projection_on_edge(fig, p) / fig.length2(); // need to check for DBZ
                 if s >= 0.0 && s <= 1.0 {
