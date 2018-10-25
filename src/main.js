@@ -1,5 +1,7 @@
 "use strict";
 
+// FIXME: drawing twice.
+
 performance.mark(PERFORMANCE_MARKERS.START_MARKER);
 
 document.addEventListener("DOMContentLoaded", () => {

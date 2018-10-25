@@ -11,7 +11,7 @@ use approximation::{Interval, View};
 use approximation::Equation;
 // use approximation::KeyValue;
 use approximation::OrdFloat;
-use spatial::{Quad, SpatialObjectWithData};
+use spatial::{Point2D, Quad, SpatialObjectWithData};
 
 /// A `ReflectionApproximator` provides a method to approximate points lying along the reflection
 /// of a `figure` equation in a `mirror` equation.
@@ -24,7 +24,7 @@ pub trait ReflectionApproximator {
         view: &View,
         scale: f64,
         glide: f64,
-    ) -> Vec<(f64, f64)>;
+    ) -> Vec<Point2D>;
 }
 
 /// Approximation of a reflection using a rasterisation technique: splitting the view up into a grid
@@ -44,7 +44,7 @@ impl ReflectionApproximator for RasterisationApproximator {
         view: &View,
         scale: f64,
         translate: f64,
-    ) -> Vec<(f64, f64)> {
+    ) -> Vec<Point2D> {
         // Calculate the number of cells we need horizontally and vertically. Round up if the view
         // size isn't perfectly divisible by the cell size.
         let [cols, rows] = [
@@ -76,17 +76,14 @@ impl ReflectionApproximator for RasterisationApproximator {
         // to reflections of points on the figure.
         let mut reflection = HashSet::new();
         for point in figure.sample(&interval) {
-            if let Some([x, y]) = view.project(point) {
-                for point in &grid[x as usize + y as usize * cols] {
-                    let (x, y) = point;
-                    reflection.insert((x.to_bits(), y.to_bits())); // FIXME: compute this more efficiently
-                }
+            if let Some(cell) = view.project(point) {
+                reflection.insert(cell);
             }
         }
 
-        reflection.into_iter().map(|(x, y)| {
-            (f64::from_bits(x), f64::from_bits(y))
-        }).collect()
+        reflection.into_iter().flat_map(|[x, y]| {
+            &grid[x as usize + y as usize * cols]
+        }).cloned().collect()
     }
 }
 
@@ -101,7 +98,7 @@ impl ReflectionApproximator for QuadraticApproximator {
         _: &View,
         scale: f64,
         glide: f64,
-    ) -> Vec<(f64, f64)> {
+    ) -> Vec<Point2D> {
         let mut pairs = vec![];
 
         let samps1: Vec<_> =
