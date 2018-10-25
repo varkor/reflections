@@ -98,11 +98,6 @@ impl<'a> Equation<'a> {
         }
     }
 
-    // pub fn gradient(&self, t: f64) -> Angle {
-    //     let (dx, dy) = self.derivative(t);
-    //     Angle::new(dy.atan2(dx))
-    // }
-
     /// Return the gradient vector at the given `t`: i.e. the value of the derivative at `t`.
     pub fn derivative(&self, t: f64) -> Point2D {
         // The function approximates the derivative using `(f(t + H) - f(t - H)) / 2 * H`.
@@ -115,27 +110,30 @@ impl<'a> Equation<'a> {
     }
 }
 
-// pub struct Region {
-//     pub origin: (f64, f64),
-// }
-
+/// A view contains information both about the region being displayed (in cartesian coördinates), as
+/// well as the size (in pixels) of the canvas on which it is displayed.
 pub struct View {
-    pub cols: u16,
-    pub rows: u16,
-    pub size: f64,
-    pub x: f64,
-    pub y: f64,
+    /// The dimensions of the view canvas in pixels.
+    pub width: u16,
+    pub height: u16,
+    /// The origin (centre) of the region in cartesian coördinates.
+    pub origin: Point2D,
+    /// The width and height of the region in cartesian distances.
+    pub size: Point2D,
 }
 
 impl View {
-    pub fn project(&self, (x, y): (f64, f64)) -> Option<(usize, usize)> {
-        let (x, y) = (((x - self.x) / self.size).round(), ((y - self.y) / self.size).round());
-        if x >= 0.0 && y >= 0.0 {
-            let (x, y) = (x as usize, y as usize);
-            if x < self.cols as usize && y < self.rows as usize {
-                return Some((x, y));
-            }
+    /// Takes a point in cartesian coördinates and returns the corresponding pixel coördinates of
+    /// the point in the canvas.
+    pub fn project(&self, (x, y): Point2D) -> Option<[u16; 2]> {
+        let [x, y] = [
+            ((x - (self.origin.0 - self.size.0 / 2.0)) / self.size.0),
+            ((y - (self.origin.1 - self.size.1 / 2.0)) / self.size.1),
+        ];
+        if x >= 0.0 && x < 1.0 && y >= 0.0 && y < 1.0 {
+            Some([(x * self.width as f64) as u16, (y * self.height as f64) as u16])
+        } else {
+            None
         }
-        None
     }
 }

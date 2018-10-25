@@ -85,20 +85,21 @@ pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: Strin
     };
 
     let interval = Interval { start: -256.0, end: 256.0, step: 0.5 };
-    let width = 640.0;
-    let height = 480.0;
-    let pixels_per_cell = thresh / 10.0;
+    let width = 640;
+    let height = 480;
+    let pixels_per_cell = ((thresh / 10.0) as u16).max(1);
     let view = View {
-        cols: (width / pixels_per_cell) as u16,
-        rows: (height / pixels_per_cell) as u16,
-        size: pixels_per_cell,
-        x: x - width / 2.0,
-        y: y - height / 2.0,
+        width,
+        height,
+        origin: (x, y),
+        size: (width as f64 * 2.0f64.powf(1.0), height as f64 * 2.0f64.powf(1.0)), // FIXME: correct this
     };
 
     let refl = match method.as_ref() {
         "rasterisation" => {
-            let approximator = RasterisationApproximator;
+            let approximator = RasterisationApproximator {
+                cell_size: pixels_per_cell,
+            };
             approximator.approximate_reflection(&mirror, &figure, &interval, &view, scale, glide)
         }
         "linear" => {

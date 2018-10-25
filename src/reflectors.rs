@@ -30,7 +30,10 @@ pub trait ReflectionApproximator {
 /// Approximation of a reflection using a rasterisation technique: splitting the view up into a grid
 /// and sampling cells to find those containing points in the reflection. This tends to be accurate,
 /// but can be slow for finer grids.
-pub struct RasterisationApproximator;
+pub struct RasterisationApproximator {
+    /// The size of each rasterisation cell in pixels.
+    pub cell_size: u16,
+}
 
 impl ReflectionApproximator for RasterisationApproximator {
     fn approximate_reflection(
@@ -40,33 +43,43 @@ impl ReflectionApproximator for RasterisationApproximator {
         interval: &Interval,
         view: &View,
         scale: f64,
-        glide: f64,
+        translate: f64,
     ) -> Vec<(f64, f64)> {
-        let mut grid = vec![vec![]; (view.cols as usize) * (view.rows as usize)];
+        // Calculate the number of cells we need horizontally and vertically. Round up if the view
+        // size isn't perfectly divisible by the cell size.
+        let [cols, rows] = [
+            ((view.width + self.cell_size - 1) / self.cell_size) as usize,
+            ((view.height + self.cell_size - 1) / self.cell_size) as usize,
+        ];
+        // Each cell (corresponding to a region) contains mappings from points in that region
+        // to their reflections.
+        let mut grid = vec![vec![]; cols * rows];
 
-        // Generate the normal mappings.
+        // Populate the mapping grid.
         for t in interval.clone() {
             let normal = mirror.normal(t);
             for s in interval.clone() {
-                let z = (normal.function)(s);
-                if let Some((x, y)) = view.project(z) {
-                    let nfms = match (scale == 1.0, glide == 0.0) {
-                        (true, true) => z,
+                let point = (normal.function)(s);
+                if let Some([x, y]) = view.project(point) {
+                    // In some cases, we can use cached computations to calculate the reflections.
+                    let reflection = match (scale == 1.0, translate == 0.0) {
+                        (true, true) => point,
                         (_, true) => (normal.function)(s * scale),
-                        (_, false) => (mirror.normal(t + glide).function)(s * scale),
+                        (_, false) => (mirror.normal(t + translate).function)(s * scale),
                     };
-                    grid[x + y * (view.cols as usize)].push(nfms);
+                    grid[x as usize + y as usize * cols].push(reflection);
                 }
             }
         }
 
-        // Intersect the grid with the figure.
+        // Intersect the grid with the figure equation, determining all the points corresponding
+        // to reflections of points on the figure.
         let mut reflection = HashSet::new();
         for point in figure.sample(&interval) {
-            if let Some((x, y)) = view.project(point) {
-                for point in &grid[x + y * (view.cols as usize)] {
+            if let Some([x, y]) = view.project(point) {
+                for point in &grid[x as usize + y as usize * cols] {
                     let (x, y) = point;
-                    reflection.insert((x.to_bits(), y.to_bits()));
+                    reflection.insert((x.to_bits(), y.to_bits())); // FIXME: compute this more efficiently
                 }
             }
         }
