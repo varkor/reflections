@@ -7,6 +7,7 @@
 
 extern crate wasm_bindgen;
 extern crate spade;
+extern crate serde;
 #[macro_use]
 extern crate serde_json;
 extern crate console_error_panic_hook;
@@ -19,6 +20,8 @@ pub mod parser;
 use parser::{Lexer, Parser};
 
 pub mod spatial;
+
+use spatial::Point2D;
 
 pub mod approximation;
 use approximation::{Interval, View};
@@ -58,7 +61,7 @@ fn construct_equation<'a>(string_x: String, string_y: String) -> Result<Equation
         function: Box::new(move |t| {
             let mut bindings = HashMap::new();
             bindings.insert('t', t);
-            (expr_x.evaluate(&bindings), expr_y.evaluate(&bindings))
+            Point2D::new([expr_x.evaluate(&bindings), expr_y.evaluate(&bindings)])
         }),
     })
 }
@@ -92,8 +95,8 @@ pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: Strin
     let view = View {
         width,
         height,
-        origin: (x, y),
-        size: (width as f64 * 2.0f64.powf(1.0), height as f64 * 2.0f64.powf(1.0)), // FIXME: correct this
+        origin: Point2D::new([x, y]),
+        size: Point2D::new([width as f64 * 2.0f64.powf(1.0), height as f64 * 2.0f64.powf(1.0)]), // FIXME: correct this
     };
 
     let refl = match method.as_ref() {

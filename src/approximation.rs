@@ -88,12 +88,12 @@ impl<'a> Equation<'a> {
 
     /// Return a new equation representing the normal at the given `t`.
     pub fn normal(&self, t: f64) -> Equation {
-        let (mx, my) = (self.function)(t);
-        let (dx, dy) = self.derivative(t);
+        let [mx, my] = (self.function)(t).into_inner();
+        let [dx, dy] = self.derivative(t).into_inner();
 
         Equation {
             function: box move |s| {
-                (mx - s * dy, my + s * dx)
+                Point2D::new([mx - s * dy, my + s * dx])
             }
         }
     }
@@ -106,7 +106,7 @@ impl<'a> Equation<'a> {
         let f = &self.function;
         let (fp, fm) = (f(t + H), f(t - H));
         let d = 2.0 * H;
-        ((fp.0 - fm.0) / d, (fp.1 - fm.1) / d)
+        (fp - fm).div(d)
     }
 }
 
@@ -125,13 +125,11 @@ pub struct View {
 impl View {
     /// Takes a point in cartesian coördinates and returns the corresponding pixel coördinates of
     /// the point in the canvas.
-    pub fn project(&self, (x, y): Point2D) -> Option<[u16; 2]> {
-        let [x, y] = [
-            ((x - (self.origin.0 - self.size.0 / 2.0)) / self.size.0),
-            ((y - (self.origin.1 - self.size.1 / 2.0)) / self.size.1),
-        ];
-        if x >= 0.0 && x < 1.0 && y >= 0.0 && y < 1.0 {
-            Some([(x * self.width as f64) as u16, (y * self.height as f64) as u16])
+    pub fn project(&self, p: Point2D) -> Option<[u16; 2]> {
+        let p2 = (p - (self.origin - self.size.div(2.0))) / self.size;
+        if p2 >= Point2D::new([0.0, 0.0]) && p2 < Point2D::new([1.0, 1.0]) {
+            let [x, y] = (p2 * Point2D::new([self.width as f64, self.height as f64])).into_inner();
+            Some([x as u16, y as u16])
         } else {
             None
         }

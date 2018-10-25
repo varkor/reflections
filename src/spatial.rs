@@ -1,11 +1,97 @@
+use std::cmp::Ordering;
+use std::ops::{Add, Div, Mul, Sub};
+
+use serde::ser::{Serialize, Serializer};
 use spade::{BoundingRect, PointN, SpatialObject};
 use spade::primitives::SimpleEdge;
 use spade::PointNExtensions;
 
 use approximation::OrdFloat;
 
-/// FIXME: use an array instead.
-pub type Point2D = (f64, f64);
+/// A cartesian point with some helper methods.
+#[derive(Clone, Copy)]
+pub struct Point2D([f64; 2]);
+
+impl Point2D {
+    pub fn new(p: [f64; 2]) -> Self {
+        Self(p)
+    }
+
+    pub fn into_inner(self) -> [f64; 2] {
+        self.into()
+    }
+
+    pub fn mul(self, multiplier: f64) -> Self {
+        Self([self.0[0] * multiplier, self.0[1] * multiplier])
+    }
+
+    pub fn div(self, divisor: f64) -> Self {
+        Self([self.0[0] / divisor, self.0[1] / divisor])
+    }
+
+    pub fn is_nan(&self) -> bool {
+        self.0[0].is_nan() || self.0[1].is_nan()
+    }
+}
+
+impl From<Point2D> for [f64; 2] {
+    fn from(p: Point2D) -> [f64; 2] {
+        p.0
+    }
+}
+
+impl Serialize for Point2D {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+        self.0.serialize(serializer)
+    }
+}
+
+impl PartialEq for Point2D {
+    fn eq(&self, other: &Point2D) -> bool {
+        self.0[0] == other.0[0] && self.0[1] == other.0[1]
+    }
+}
+
+impl PartialOrd for Point2D {
+    fn partial_cmp(&self, other: &Point2D) -> Option<Ordering> {
+        match (self.0[0].partial_cmp(&other.0[0]), self.0[1].partial_cmp(&other.0[1])) {
+            (Some(x), Some(y)) if x == y => Some(x),
+            _ => None,
+        }
+    }
+}
+
+impl Add for Point2D {
+    type Output = Point2D;
+
+    fn add(self, other: Point2D) -> Point2D {
+        Point2D([self.0[0] + other.0[0], self.0[1] + other.0[1]])
+    }
+}
+
+impl Sub for Point2D {
+    type Output = Point2D;
+
+    fn sub(self, other: Point2D) -> Point2D {
+        Point2D([self.0[0] - other.0[0], self.0[1] - other.0[1]])
+    }
+}
+
+impl Mul for Point2D {
+    type Output = Point2D;
+
+    fn mul(self, other: Point2D) -> Point2D {
+        Point2D([self.0[0] * other.0[0], self.0[1] * other.0[1]])
+    }
+}
+
+impl Div for Point2D {
+    type Output = Point2D;
+
+    fn div(self, other: Point2D) -> Point2D {
+        Point2D([self.0[0] / other.0[0], self.0[1] / other.0[1]])
+    }
+}
 
 /// A `SpatialObject` that also carries data. Methods are simply forwarded to the `SpatialObject`.
 #[derive(Clone)]
