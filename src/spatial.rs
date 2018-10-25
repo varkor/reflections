@@ -1,5 +1,6 @@
 use spade::{BoundingRect, PointN, SpatialObject};
 use spade::primitives::SimpleEdge;
+use spade::PointNExtensions;
 
 use approximation::OrdFloat;
 
@@ -58,27 +59,38 @@ impl SpatialObject for Quad<[f64; 2]> {
         /// outside the polygon.
         /// This algorithm is based on the one at: http://geomalgorithms.com/a03-_inclusion.html.
         fn winding_number(point: &[f64; 2], points: &[[f64; 2]; 4]) -> i8 {
-            // The displacement of the point `p2` from the line `pl`.
-            // FIXME
-            fn displ(pl: [[f64; 2]; 2], p2: [f64; 2]) -> f64 {
-                let [p0, p1] = pl;
-                (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p2[0] -  p0[0]) * (p1[1] - p0[1])
+            // The displacement of a point from a line (in effect the determinant of a 2x2 matrix).
+            fn displ(line: [[f64; 2]; 2], point: [f64; 2]) -> f64 {
+                let [base, end] = line;
+                let end = end.sub(&base);
+                let point = point.sub(&base);
+                end[0] * point[1] - end[1] * point[0]
             }
 
             (0..4).map(|i| {
-                match (points[i][1] <= point[1], points[(i + 1) % 4][1] <= point[1]) {
-                    (true, false) if displ([points[i], points[(i + 1) % 4]], *point) > 0.0 => 1,
-                    (false, true) if displ([points[i], points[(i + 1) % 4]], *point) < 0.0 => -1,
-                    _ => 0,
+                if (points[i][1] <= point[1]) != (points[(i + 1) % 4][1] <= point[1]) {
+                    match displ([points[i], points[(i + 1) % 4]], *point) {
+                        x if x > 0.0 => 1,
+                        x if x < 0.0 => -1,
+                        _ => 0,
+                    }
+                } else {
+                    0
                 }
             }).sum()
         }
 
-        let min_dis = self.edges.iter().filter_map(|edge| OrdFloat::new(edge.distance2(point))).min().unwrap().0;
+        // The minimum distance from any edge to the point.
+        let min_dis = self.edges.iter()
+            .filter_map(|edge| OrdFloat::new(edge.distance2(point)))
+            .min()
+            .unwrap()
+            .into();
 
         if winding_number(point, &self.points) == 0 {
             min_dis
         } else {
+            // If the point is contained inside the shape, we must return a negative distance.
             -min_dis
         }
     }

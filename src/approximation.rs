@@ -69,6 +69,12 @@ impl Ord for OrdFloat {
     }
 }
 
+impl From<OrdFloat> for f64 {
+    fn from(x: OrdFloat) -> f64 {
+        x.0
+    }
+}
+
 /// A parametric equation ℝ → ℝ × ℝ.
 pub struct Equation<'a> {
     pub function: Box<dyn 'a + Fn(f64) -> Point2D>,

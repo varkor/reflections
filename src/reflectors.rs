@@ -24,7 +24,7 @@ pub trait ReflectionApproximator {
         view: &View,
         scale: f64,
         glide: f64,
-    ) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>);
+    ) -> Vec<(f64, f64)>;
 }
 
 /// Approximation of a reflection using a rasterisation technique: splitting the view up into a grid
@@ -41,17 +41,14 @@ impl ReflectionApproximator for RasterisationApproximator {
         view: &View,
         scale: f64,
         glide: f64,
-    ) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
+    ) -> Vec<(f64, f64)> {
         let mut grid = vec![vec![]; (view.cols as usize) * (view.rows as usize)];
-        let mut normals = vec![];
 
         // Generate the normal mappings.
         for t in interval.clone() {
             let normal = mirror.normal(t);
-            let mut norm = vec![];
             for s in interval.clone() {
                 let z = (normal.function)(s);
-                norm.push(z);
                 if let Some((x, y)) = view.project(z) {
                     let nfms = match (scale == 1.0, glide == 0.0) {
                         (true, true) => z,
@@ -61,7 +58,6 @@ impl ReflectionApproximator for RasterisationApproximator {
                     grid[x + y * (view.cols as usize)].push(nfms);
                 }
             }
-            normals.push(norm);
         }
 
         // Intersect the grid with the figure.
@@ -75,9 +71,9 @@ impl ReflectionApproximator for RasterisationApproximator {
             }
         }
 
-        (reflection.into_iter().map(|(x, y)| {
+        reflection.into_iter().map(|(x, y)| {
             (f64::from_bits(x), f64::from_bits(y))
-        }).collect(), normals)
+        }).collect()
     }
 }
 
@@ -92,22 +88,8 @@ impl ReflectionApproximator for QuadraticApproximator {
         _: &View,
         scale: f64,
         glide: f64,
-    ) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
+    ) -> Vec<(f64, f64)> {
         let mut pairs = vec![];
-        let norms = vec![];
-
-        // let range = interval.start..=interval.end;
-        // let samples = ((interval.end - interval.start) / interval.step) as u64 + 1;
-
-        // let mut adsamp = adaptive_sample(|t| KeyValue((), t), &(-256.0..=256.0), 513);
-        // let mut adsamp = adaptive_sample(|t| {
-            // let (x, y) = (mirror.derivative().function)(t);
-            // println!("(x,y)={:?} t={} l={}", (x, y), t, [x, y].length2());
-            // KeyValue([x, y].length2(), t)
-            // KeyValue(mirror.gradient(t), t)
-            // KeyValue((), t)
-        // }, &(-256.0..=256.0), 513);
-        // adsamp.sort_unstable_by_key(|&x| OrdFloat(x));
 
         let samps1: Vec<_> =
         (Interval { start: -256.0, end: 256.0, step: 1.0 })
@@ -206,7 +188,7 @@ impl ReflectionApproximator for QuadraticApproximator {
             }
         }
 
-        (reflection.iter().map(|(x, y)| (f64::from_bits(*x), f64::from_bits(*y))).collect(), norms)
+        reflection.iter().map(|(x, y)| (f64::from_bits(*x), f64::from_bits(*y))).collect()
     }
 }
 
@@ -221,23 +203,18 @@ impl ReflectionApproximator for LinearApproximator {
         _view: &View,
         _scale: f64,
         _glide: f64,
-    ) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
+    ) -> Vec<(f64, f64)> {
         let mut pairs = vec![];
-        let mut norms = vec![];
 
         let _range = interval.start..=interval.end;
         let _samples = ((interval.end - interval.start) / interval.step) as u64 + 1;
 
         for t in (Interval { start: -256.0, end: 256.0, step: 1.0 }) {
             let normal = mirror.normal(t);
-            let mut norm = vec![];
             // should be able to reduce sampling significantly here (only when linear)
             let samps: Vec<((f64, f64), (f64, f64))> = (Interval { start: -256.0, end: 256.0, step: 512.0 }).map(|s| {
                 ((normal.function)(s), (normal.function)(-s))
             }).collect();
-            for ((x, y), _) in &samps {
-                norm.push((*x, *y));
-            }
             let windows = samps.windows(2);
             for window in windows {
                 if let &[((x1, y1), v1), ((x2, y2), v2)] = window {
@@ -249,7 +226,6 @@ impl ReflectionApproximator for LinearApproximator {
             //     norm.push((x, y));
             //     pairs.push(SpatialObjectWithData([x, y], (normal.function)(-s)));
             // }
-            norms.push(norm);
         }
 
         let rtree = RTree::bulk_load(pairs);
@@ -294,6 +270,6 @@ impl ReflectionApproximator for LinearApproximator {
             }
         }
 
-        (reflection.iter().map(|(x, y)| (f64::from_bits(*x), f64::from_bits(*y))).collect(), norms)
+        reflection.iter().map(|(x, y)| (f64::from_bits(*x), f64::from_bits(*y))).collect()
     }
 }

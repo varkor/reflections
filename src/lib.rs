@@ -70,7 +70,7 @@ pub extern fn initialise() {
 }
 
 #[wasm_bindgen]
-pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: String, mirror_x: String, mirror_y: String, method: String, norms: bool, thresh: f64, scale: f64, glide: f64) -> String {
+pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: String, mirror_x: String, mirror_y: String, method: String, _norms: bool, thresh: f64, scale: f64, glide: f64) -> String {
     let figure = if let Ok(figure) = construct_equation(figure_x.clone(), figure_y.clone()) {
         figure
     } else {
@@ -96,7 +96,7 @@ pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: Strin
         y: y - height / 2.0,
     };
 
-    let (refl, mut normals) = match method.as_ref() {
+    let refl = match method.as_ref() {
         "rasterisation" => {
             let approximator = RasterisationApproximator;
             approximator.approximate_reflection(&mirror, &figure, &interval, &view, scale, glide)
@@ -112,11 +112,8 @@ pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: Strin
         _ => panic!("unknown rendering method"),
     };
 
-    if !norms {
-        normals = vec![];
-    }
     // let normals: Vec<_> = interval.clone().map(|t| mirror.normal(t).sample(&Interval { start: -256.0, end: 256.0, step: 2.0 }))).collect();
-    // let normals: Vec<()> = vec![];
+    let normals: Vec<()> = vec![];
     // log(&format!("normals {:?}", normals));
     let json = json!((
         mirror.sample(&interval),
