@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use spade::BoundingRect;
 use spade::PointN;
 use spade::PointNExtensions;
 use spade::primitives::SimpleEdge;
@@ -12,7 +11,7 @@ use approximation::{Interval, View};
 use approximation::Equation;
 // use approximation::KeyValue;
 use approximation::OrdFloat;
-use spatial::SpatialObjectWithData;
+use spatial::{Quad, SpatialObjectWithData};
 
 /// A `ReflectionApproximator` provides a method to approximate points lying along the reflection
 /// of a `figure` equation in a `mirror` equation.
@@ -23,7 +22,7 @@ pub trait ReflectionApproximator {
         figure: &Equation,
         interval: &Interval,
         view: &View,
-        reflect: bool,
+        scale: f64,
         glide: f64,
     ) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>);
 }
@@ -40,7 +39,7 @@ impl ReflectionApproximator for RasterisationApproximator {
         figure: &Equation,
         interval: &Interval,
         view: &View,
-        reflect: bool,
+        scale: f64,
         glide: f64,
     ) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
         let mut grid = vec![vec![]; (view.cols as usize) * (view.rows as usize)];
@@ -54,11 +53,10 @@ impl ReflectionApproximator for RasterisationApproximator {
                 let z = (normal.function)(s);
                 norm.push(z);
                 if let Some((x, y)) = view.project(z) {
-                    let nfms = match (reflect, glide == 0.0) {
-                        (true, true) => (normal.function)(-s),
-                        (false, true) => z,
-                        (true, false) => (mirror.normal(t + glide).function)(-s),
-                        (false, false) => (mirror.normal(t + glide).function)(s),
+                    let nfms = match (scale == 1.0, glide == 0.0) {
+                        (true, true) => z,
+                        (_, true) => (normal.function)(s * scale),
+                        (_, false) => (mirror.normal(t + glide).function)(s * scale),
                     };
                     grid[x + y * (view.cols as usize)].push(nfms);
                 }
@@ -92,7 +90,7 @@ impl ReflectionApproximator for QuadraticApproximator {
         figure: &Equation,
         _interval: &Interval,
         _: &View,
-        reflect: bool,
+        scale: f64,
         glide: f64,
     ) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
         let mut pairs = vec![];
@@ -100,74 +98,6 @@ impl ReflectionApproximator for QuadraticApproximator {
 
         // let range = interval.start..=interval.end;
         // let samples = ((interval.end - interval.start) / interval.step) as u64 + 1;
-
-        #[derive(Clone, Debug)]
-        struct Quad<V: PointN + Copy> {
-            points: [V; 4],
-            edges: [SimpleEdge<V>; 4],
-            diam: V::Scalar,
-        }
-
-        impl<V: PointN + Copy> Quad<V> {
-            fn new(points: [V; 4], zero: V::Scalar) -> Quad<V> {
-                Quad {
-                    points,
-                    edges: [
-                        SimpleEdge::new(points[0], points[1]),
-                        SimpleEdge::new(points[1], points[2]),
-                        SimpleEdge::new(points[2], points[3]),
-                        SimpleEdge::new(points[3], points[0]),
-                    ],
-                    diam: zero,
-                }
-            }
-        }
-
-        impl SpatialObject for Quad<[f64; 2]> {
-            type Point = [f64; 2];
-
-            fn mbr(&self) -> BoundingRect<[f64; 2]> {
-                BoundingRect::from_points(self.points.iter().cloned())
-            }
-
-            fn distance2(&self, point: &[f64; 2]) -> f64 {
-
-                let is_left = |p0: [f64; 2], p1: [f64; 2], p2: [f64; 2]| {
-                    (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p2[0] -  p0[0]) * (p1[1] - p0[1])
-                };
-
-                // http://geomalgorithms.com/a03-_inclusion.html
-                let winding_number = || {
-                    let mut wn = 0;
-
-                    for i in 0..4 {
-                        if self.points[i][1] <= point[1] {
-                            if self.points[(i + 1) % 4][1] > point[1] {
-                                if is_left(self.points[i], self.points[(i + 1) % 4], *point) > 0.0 {
-                                    wn += 1;
-                                }
-                            }
-                        } else {
-                            if self.points[(i + 1) % 4][1] <= point[1] {
-                                if is_left(self.points[i], self.points[(i + 1) % 4], *point) < 0.0 {
-                                    wn -= 1;
-                                }
-                            }
-                        }
-                    }
-
-                    wn
-                };
-
-                let min_dis = self.edges.iter().filter_map(|edge| OrdFloat::new(edge.distance2(point))).min().unwrap().0;
-
-                if winding_number() == 0 {
-                    min_dis
-                } else {
-                    -min_dis
-                }
-            }
-        }
 
         // let mut adsamp = adaptive_sample(|t| KeyValue((), t), &(-256.0..=256.0), 513);
         // let mut adsamp = adaptive_sample(|t| {
@@ -188,11 +118,10 @@ impl ReflectionApproximator for QuadraticApproximator {
             let normal = mirror.normal(t);
             let samps: Vec<((f64, f64), (f64, f64), (f64, f64))> = (Interval { start: -256.0, end: 256.0, step: 512.0 }).filter_map(|s| {
                 let nfs = (normal.function)(s);
-                let nfms = match (reflect, glide == 0.0) {
-                    (true, true) => (normal.function)(-s),
-                    (false, true) => nfs,
-                    (true, false) => (mirror.normal(t + glide).function)(-s),
-                    (false, false) => (mirror.normal(t + glide).function)(s),
+                let nfms = match (scale == 1.0, glide == 0.0) {
+                    (true, true) => nfs,
+                    (_, true) => (normal.function)(s * scale),
+                    (_, false) => (mirror.normal(t + glide).function)(s * scale),
                 };
                 if !nfs.0.is_nan() && !nfs.1.is_nan() && !nfms.0.is_nan() && !nfms.1.is_nan() {
                     Some((nfs, nfms, (t, s)))
@@ -290,7 +219,7 @@ impl ReflectionApproximator for LinearApproximator {
         figure: &Equation,
         interval: &Interval,
         _view: &View,
-        _reflect: bool,
+        _scale: f64,
         _glide: f64,
     ) -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
         let mut pairs = vec![];

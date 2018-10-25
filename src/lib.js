@@ -286,6 +286,11 @@ class RustWASMContext {
     }
 }
 
+const special_variables = new Map([
+    ["scaling", "σ"],
+    ["translation", "τ"],
+]);
+
 class NonaffineReflection {
     constructor(mirror, figure, bindings, view, settings) {
         mirror = mirror.map(eq => new Equation(eq).substitute(bindings));
@@ -302,8 +307,8 @@ class NonaffineReflection {
                 settings.get("method"),
                 settings.get("draw_normals"),
                 settings.get("threshold"),
-                settings.get("reflect"),
-                bindings.get("γ"),
+                bindings.get(special_variables.get("scaling")),
+                bindings.get(special_variables.get("translation")),
             );
             performance.mark(PERFORMANCE_MARKERS.WASM_BINDGEN_CALL);
             try {

@@ -29,7 +29,6 @@ document.addEventListener("DOMContentLoaded", () => {
         ["method", "quadratic"],
         ["draw_normals", false],
         ["t_offset", "0"],
-        ["reflect", true],
     ]);
     let reflection = null;
 
@@ -248,17 +247,7 @@ document.addEventListener("DOMContentLoaded", () => {
             self.components[0].id = "figure-equation";
             [self.components[0].value, self.components[1].value] = figure_equation;
         });
-    new Div(["inline"]).precede(figure)
-        .add_text("Reflect ")
-        .append(
-            new Checkbox(settings.get("reflect"))
-                .for_which(self => self.id = "reflect")
-                .listen("input", (_, self) => {
-                    settings.set("reflect", self.checked);
-                    rerender(true);
-                }),
-            new Label(" the figure", figure.components[0])
-        );
+    new Label("Scale the figure", figure.components[0]).precede(figure);
 
     const mirror = new ParametricEquationInput(() => {
         mirror_equation = mirror.components.map(({ value }) => value);
@@ -272,7 +261,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     new Label(" in the mirror", mirror.components[0]).precede(mirror);
 
-    equation_container.add_text(", and translate by γ, where:");
+    equation_container.add_text(` by ${special_variables.get("scaling")}, and translate by ${special_variables.get("translation")}, where:`);
 
     const var_container = new Div(["variables"]).append_to(new Div().append_to(equation_container));
 
@@ -282,7 +271,13 @@ document.addEventListener("DOMContentLoaded", () => {
         function add_var_slider(v) {
             const value = bindings.get(v);
             const value_text = new Div(["value"]).add_text(value);
-            const slider = new RangeSlider(-255, value, 255).listen("input", (_, self) => {
+            let [min, max, step] = [-255, 255, 1];
+            switch (v) {
+                case special_variables.get("scaling"):
+                    [min, max, step] = [-2, 2, 0.1];
+                    break;
+            }
+            const slider = new RangeSlider(min, value, max, step).listen("input", (_, self) => {
                 bindings.set(v, self.value);
                 value_text.element.childNodes[0].nodeValue = self.value;
                 rerender(true);
@@ -302,14 +297,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 .flat()
         );
         vars.delete("t"); // `t` is a special parameter.
-        vars.add("γ");
+        vars.add(special_variables.get("scaling"));
+        vars.add(special_variables.get("translation"));
 
         const all_vars = Array.from(new Set([...var_map.keys(), ...vars]));
         all_vars.sort((a, b) => {
-            if (a === "γ") {
+            if (/[α-ω]/.test(a)) {
                 return -1;
             }
-            if (b === "γ") {
+            if (/[α-ω]/.test(b)) {
                 return 1;
             }
             return a.localCompare(b);
@@ -320,7 +316,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (!var_map.has(v)) {
                     // We may already have a binding from the settings.
                     if (!bindings.has(v)) {
-                        bindings.set(v, "0");
+                        let def = 0;
+                        switch (v) {
+                            case special_variables.get("scaling"):
+                                def = -1;
+                                break;
+                        }
+                        bindings.set(v, `${def}`);
                     }
                     const var_slider = add_var_slider(v);
                     if (prev_var !== null) {

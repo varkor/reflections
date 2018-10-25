@@ -70,7 +70,7 @@ pub extern fn initialise() {
 }
 
 #[wasm_bindgen]
-pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: String, mirror_x: String, mirror_y: String, method: String, norms: bool, thresh: f64, reflect: bool, glide: f64) -> String {
+pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: String, mirror_x: String, mirror_y: String, method: String, norms: bool, thresh: f64, scale: f64, glide: f64) -> String {
     let figure = if let Ok(figure) = construct_equation(figure_x.clone(), figure_y.clone()) {
         figure
     } else {
@@ -99,15 +99,15 @@ pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: Strin
     let (refl, mut normals) = match method.as_ref() {
         "rasterisation" => {
             let approximator = RasterisationApproximator;
-            approximator.approximate_reflection(&mirror, &figure, &interval, &view, reflect, glide)
+            approximator.approximate_reflection(&mirror, &figure, &interval, &view, scale, glide)
         }
         "linear" => {
             let approximator = LinearApproximator(thresh);
-            approximator.approximate_reflection(&mirror, &figure, &interval, &view, reflect, glide)
+            approximator.approximate_reflection(&mirror, &figure, &interval, &view, scale, glide)
         }
         "quadratic" => {
             let approximator = QuadraticApproximator;
-            approximator.approximate_reflection(&mirror, &figure, &interval, &view, reflect, glide)
+            approximator.approximate_reflection(&mirror, &figure, &interval, &view, scale, glide)
         }
         _ => panic!("unknown rendering method"),
     };
