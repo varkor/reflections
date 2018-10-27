@@ -7,6 +7,8 @@ use spade::rtree::RTree;
 use approximation::{Equation, Interval, View};
 use spatial::{Pair, Point2D, Quad, SpatialObjectWithData};
 
+use super::console_log;
+
 /// A `ReflectionApproximator` provides a method to approximate points lying along the reflection
 /// of a `figure` equation in a `mirror` equation.
 pub trait ReflectionApproximator {
@@ -54,7 +56,7 @@ impl ReflectionApproximator for RasterisationApproximator {
             let normal = mirror.normal(t);
             for s in interval.clone() {
                 let point = (normal.function)(s);
-                if let Some([x, y]) = view.project(point) {
+                if let Some([x, y]) = view.project(point, [cols, rows]) {
                     // In some cases, we can use cached computations to calculate the reflections.
                     let image = match (scale == 1.0, translate == 0.0) {
                         (true, true) => point,
@@ -70,7 +72,7 @@ impl ReflectionApproximator for RasterisationApproximator {
         // to reflections of points on the figure.
         let mut reflection = HashSet::new();
         for point in figure.sample(&interval) {
-            if let Some(cell) = view.project(point) {
+            if let Some(cell) = view.project(point, [cols, rows]) {
                 reflection.insert(cell);
             }
         }

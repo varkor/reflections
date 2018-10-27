@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const settings = new Map([
         ["threshold", "4"],
-        ["method", "quadratic"],
+        ["method", /*"quadratic"*/ "rasterisation"],
         ["draw_normals", false],
         ["t_offset", "0"],
     ]);

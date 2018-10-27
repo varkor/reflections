@@ -130,16 +130,16 @@ pub struct View {
 
 impl View {
     /// Takes a point in cartesian coördinates and returns the corresponding pixel coördinates of
-    /// the point in the canvas.
-    pub fn project(&self, p: Point2D) -> Option<[u16; 2]> {
+    /// the point in the given region.
+    pub fn project(&self, p: Point2D, region: [usize; 2]) -> Option<[usize; 2]> {
         if p.is_nan() {
             return None;
         }
 
-        let q = (p - (self.origin - self.size / Point2D::diag(2.0))) / self.size;
-        if q >= Point2D::zero() && q < Point2D::one() {
-            let [x, y] = (q * Point2D::new([self.width as f64, self.height as f64])).into_inner();
-            Some([x as u16, y as u16])
+        let q = p - (self.origin - self.size / Point2D::diag(2.0));
+        if q >= Point2D::zero() && q < self.size {
+            let [x, y] = (q * Point2D::new([region[0] as f64, region[1] as f64]) / self.size).into_inner();
+            Some([x as usize, y as usize])
         } else {
             None
         }
