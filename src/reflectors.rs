@@ -124,7 +124,8 @@ impl ReflectionApproximator for QuadraticApproximator {
             }).collect::<Vec<_>>()
         }).collect();
 
-        // A collection of quads with (t, s) data at each point, used for image interpolation.
+        // A collection of quads with (point, image) data at each point, used for
+        // image interpolation.
         let mut reflection_regions = vec![];
 
         // Populate `reflection_regions`.
@@ -173,7 +174,7 @@ impl ReflectionApproximator for QuadraticApproximator {
                 points.iter().map(|point| {
                     // Interpolate the possible reflections corresponding to the quad vertices in
                     // comparison to the point.
-                    let proj = Point2D::new([
+                    let proj = Pair::new([
                         projection_on_edge(&quad.edges[0], &point) / quad.edges[0].length2(),
                         1.0 - projection_on_edge(&quad.edges[2], &point) / quad.edges[2].length2(),
                     ]);
@@ -184,14 +185,16 @@ impl ReflectionApproximator for QuadraticApproximator {
                     let factor = Point2D::one() - dis.div(dis.sum());
                     let [base, end] = [Pair::new([a, d]), Pair::new([b, c])];
 
-                    ((base + (end - base) * Pair::diag(proj)) * Pair::diag(factor)).sum()
+                    ((base + (end - base) * proj.map(Pair::diag)) * factor.map(Pair::diag)).sum()
                 }).collect::<Vec<_>>()
             })
             .collect()
     }
 }
 
-pub struct LinearApproximator(pub f64);
+pub struct LinearApproximator {
+    pub threshold: f64,
+}
 
 impl ReflectionApproximator for LinearApproximator {
     fn approximate_reflection(
@@ -203,49 +206,35 @@ impl ReflectionApproximator for LinearApproximator {
         _scale: f64,
         _glide: f64,
     ) -> Vec<Point2D> {
-        let mut pairs = vec![];
+        // A collection of lines with (point, image) data at each point, used for
+        // image interpolation.
+        let mut reflection_lines = vec![];
 
-        let _range = interval.start..=interval.end;
-        let _samples = ((interval.end - interval.start) / interval.step) as u64 + 1;
-
-        for t in (Interval { start: -256.0, end: 256.0, step: 1.0 }) {
+        for t in interval.clone() {
             let normal = mirror.normal(t);
-            // should be able to reduce sampling significantly here (only when linear)
-            let samps: Vec<(Point2D, Point2D)> = (Interval { start: -256.0, end: 256.0, step: 512.0 }).map(|s| {
+            let endpoint_interval = Interval::endpoints(interval.start, interval.end);
+
+            let samples: Vec<_> = endpoint_interval.map(|s| {
                 ((normal.function)(s), (normal.function)(-s))
             }).collect();
-            let windows = samps.windows(2);
-            for window in windows {
-                if let &[(p1, v1), (p2, v2)] = window {
-                    let p1 = p1.into_inner();
-                    let p2 = p2.into_inner();
-                    pairs.push(SpatialObjectWithData(SimpleEdge::new(p1, p2), (v1, v2)));
+
+            for window in samples.windows(2) {
+                // Guaranteed to pattern match successfully.
+                if let &[(point_l, image_l), (point_r, image_r)] = window {
+                    reflection_lines.push(SpatialObjectWithData(
+                        SimpleEdge::new(point_l, point_r),
+                        (image_l, image_r)
+                    ));
                 }
             }
-            // for s in interval.clone() {
-            //     let (x, y) = (normal.function)(s);
-            //     norm.push((x, y));
-            //     pairs.push(SpatialObjectWithData([x, y], (normal.function)(-s)));
-            // }
         }
 
-        let rtree = RTree::bulk_load(pairs);
-
+        let rtree = RTree::bulk_load(reflection_lines);
         let mut reflection = HashSet::new();
 
-        /*let figure_sample = adaptive_sample(
-            |t| {
-                // log(&format!("{:?}", t));
-                let (x, y) = (figure.function)(t);
-                KeyValue(Point2D(x, y), (x, y))
-            },
-            &range,
-            samples,
-        );*/
-        let interval_sample = figure.sample(&(Interval { start: -256.0, end: 256.0, step: 1.0 }));
+        let threshold = self.threshold.sqrt();
 
-        let threshold = self.0.sqrt();
-
+        // FIXME: deduplicate
         fn projection_on_edge<V: PointN>(edge: &SimpleEdge<V>, query_point: &V) -> V::Scalar {
             let (p1, p2) = (&edge.from, &edge.to);
             let dir = p2.sub(p1);
@@ -253,19 +242,13 @@ impl ReflectionApproximator for LinearApproximator {
             s
         }
 
-        // let fs = figure_sample;
-        let fs = interval_sample;
-
-        for p in fs {
-            let p = p.into_inner(); // FIXME
-            for SpatialObjectWithData(fig, (v1, v2)) in rtree.lookup_in_circle(&p, &threshold) {
-                // find closest point (x, y) on line as param from 0 to 1
-                let s = projection_on_edge(fig, &p) / fig.length2(); // need to check for DBZ
+        for p in figure.sample(&interval) {
+            for &SpatialObjectWithData(ref fig, (v1, v2)) in rtree.lookup_in_circle(&p, &threshold) {
+                // Find the closest point on the line `fig` to the point `p` as a parameter from
+                // 0 to 1.
+                let s = projection_on_edge(fig, &p) / fig.length2(); // FIXME: need to check for div-by-zero
                 if s >= 0.0 && s <= 1.0 {
-                    // maybe we should check 0 <= s <= 1?
-                    let d = *v2 - *v1;
-                    // calc 0-1 param on refl
-                    let p = *v1 + d.mul(s);
+                    let p = v1 + (v2 - v1).mul(s);
                     let [x, y] = p.into_inner();
                     reflection.insert((x.to_bits(), y.to_bits()));
                 }

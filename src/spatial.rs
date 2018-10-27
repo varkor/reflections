@@ -33,6 +33,10 @@ impl<T: Copy> Pair<T> {
     pub fn y(&self) -> T {
         self.0[1]
     }
+
+    pub fn map<S>(self, f: impl Fn(T) -> S) -> Pair<S> {
+        Pair([f(self.x()), f(self.y())])
+    }
 }
 
 impl<T: Serialize> Serialize for Pair<T> {

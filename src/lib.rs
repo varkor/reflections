@@ -108,7 +108,9 @@ pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: Strin
             approximator.approximate_reflection(&mirror, &figure, &interval, &view, scale, translate)
         }
         "linear" => {
-            let approximator = LinearApproximator(thresh);
+            let approximator = LinearApproximator {
+                threshold: thresh,
+            };
             approximator.approximate_reflection(&mirror, &figure, &interval, &view, scale, translate)
         }
         "quadratic" => {
