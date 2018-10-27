@@ -112,7 +112,7 @@ impl<'a> Equation<'a> {
         let f = &self.function;
         let (fp, fm) = (f(t + H), f(t - H));
         let d = 2.0 * H;
-        (fp - fm).div(d)
+        (fp - fm) / Point2D::diag(d)
     }
 }
 
@@ -136,7 +136,7 @@ impl View {
             return None;
         }
 
-        let q = (p - (self.origin - self.size.div(2.0))) / self.size;
+        let q = (p - (self.origin - self.size / Point2D::diag(2.0))) / self.size;
         if q >= Point2D::zero() && q < Point2D::one() {
             let [x, y] = (q * Point2D::new([self.width as f64, self.height as f64])).into_inner();
             Some([x as u16, y as u16])

@@ -2,76 +2,54 @@ use std::cmp::Ordering;
 use std::ops::{Add, Div, Mul, Sub};
 
 use serde::ser::{Serialize, Serializer};
-use spade::{BoundingRect, PointN, SpatialObject, TwoDimensional};
+use spade::{BoundingRect, PointN, SpadeNum, SpatialObject, TwoDimensional};
 use spade::primitives::SimpleEdge;
 
 use approximation::OrdFloat;
 
 /// A cartesian point with some helper methods.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Point2D([f64; 2]);
+pub struct Pair<T>([T; 2]);
 
-impl Point2D {
-    pub fn new(p: [f64; 2]) -> Self {
+impl<T: Copy> Pair<T> {
+    pub fn new(p: [T; 2]) -> Self {
         Self(p)
     }
 
-    pub fn zero() -> Self {
-        Self([0.0, 0.0])
+    pub fn diag(d: T) -> Self {
+        Self([d; 2])
     }
 
-    pub fn one() -> Self {
-        Self([1.0, 1.0])
-    }
-
-    pub fn into_inner(self) -> [f64; 2] {
-        self.into()
+    pub fn into_inner(self) -> [T; 2] {
+        self.0
     }
 
     #[inline]
-    pub fn x(&self) -> f64 {
+    pub fn x(&self) -> T {
         self.0[0]
     }
 
     #[inline]
-    pub fn y(&self) -> f64 {
+    pub fn y(&self) -> T {
         self.0[1]
     }
-
-    pub fn mul(self, multiplier: f64) -> Self {
-        Self([self.x() * multiplier, self.y() * multiplier])
-    }
-
-    pub fn div(self, divisor: f64) -> Self {
-        Self([self.x() / divisor, self.y() / divisor])
-    }
-
-    pub fn is_nan(&self) -> bool {
-        self.x().is_nan() || self.y().is_nan()
-    }
 }
 
-impl From<Point2D> for [f64; 2] {
-    fn from(p: Point2D) -> [f64; 2] {
-        p.0
-    }
-}
-
-impl Serialize for Point2D {
+impl<T: Serialize> Serialize for Pair<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
         self.0.serialize(serializer)
     }
 }
 
-impl PointN for Point2D {
-    type Scalar = f64;
+impl<T: Copy + SpadeNum> PointN for Pair<T> {
+    type Scalar = T;
 
     fn dimensions() -> usize {
         2
     }
 
     fn from_value(value: Self::Scalar) -> Self {
-        Point2D::new([value; 2])
+        Pair::diag(value)
     }
 
     fn nth(&self, index: usize) -> &Self::Scalar {
@@ -83,10 +61,10 @@ impl PointN for Point2D {
     }
 }
 
-impl TwoDimensional for Point2D {}
+impl<T: Copy + SpadeNum> TwoDimensional for Pair<T> {}
 
-impl PartialOrd for Point2D {
-    fn partial_cmp(&self, other: &Point2D) -> Option<Ordering> {
+impl<T: Copy + PartialOrd> PartialOrd for Pair<T> {
+    fn partial_cmp(&self, other: &Pair<T>) -> Option<Ordering> {
         match (self.x().partial_cmp(&other.x()), self.y().partial_cmp(&other.y())) {
             (Some(x), Some(y)) if x == y => Some(x),
             _ => None,
@@ -94,82 +72,63 @@ impl PartialOrd for Point2D {
     }
 }
 
-impl Add for Point2D {
-    type Output = Point2D;
+impl<T: Add + Copy> Add for Pair<T> {
+    type Output = Pair<<T as Add>::Output>;
 
-    fn add(self, other: Point2D) -> Point2D {
-        Point2D([self.x() + other.x(), self.y() + other.y()])
+    fn add(self, other: Pair<T>) -> Self::Output {
+        Pair([self.x() + other.x(), self.y() + other.y()])
     }
 }
 
-impl Sub for Point2D {
-    type Output = Point2D;
-
-    fn sub(self, other: Point2D) -> Point2D {
-        Point2D([self.x() - other.x(), self.y() - other.y()])
+impl<T: Add + Copy> Pair<T> {
+    pub fn sum(self) -> <T as Add>::Output {
+        self.x() + self.y()
     }
 }
 
-impl Mul for Point2D {
-    type Output = Point2D;
+impl<T: Copy + Sub> Sub for Pair<T> {
+    type Output = Pair<<T as Sub>::Output>;
 
-    fn mul(self, other: Point2D) -> Point2D {
-        Point2D([self.x() * other.x(), self.y() * other.y()])
+    fn sub(self, other: Pair<T>) -> Self::Output {
+        Pair([self.x() - other.x(), self.y() - other.y()])
     }
 }
 
-impl Div for Point2D {
-    type Output = Point2D;
+impl<T: Copy + Mul> Mul for Pair<T> {
+    type Output = Pair<<T as Mul>::Output>;
 
-    fn div(self, other: Point2D) -> Point2D {
-        Point2D([self.x() / other.x(), self.y() / other.y()])
+    fn mul(self, other: Pair<T>) -> Self::Output {
+        Pair([self.x() * other.x(), self.y() * other.y()])
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Point4D([Point2D; 2]);
+impl<T: Copy + Div> Div for Pair<T> {
+    type Output = Pair<<T as Div>::Output>;
 
-impl Point4D {
-    pub fn new(p: [Point2D; 2]) -> Self {
-        Self(p)
-    }
-
-    #[inline]
-    pub fn x(&self) -> Point2D {
-        self.0[0]
-    }
-
-    #[inline]
-    pub fn y(&self) -> Point2D {
-        self.0[1]
-    }
-
-    pub fn mul(self, multiplier: Point2D) -> Self {
-        Self([self.x() * multiplier, self.y() * multiplier])
+    fn div(self, other: Pair<T>) -> Self::Output {
+        Pair([self.x() / other.x(), self.y() / other.y()])
     }
 }
 
-impl Add for Point4D {
-    type Output = Point4D;
+pub type Point2D = Pair<f64>;
 
-    fn add(self, other: Point4D) -> Point4D {
-        Point4D([self.x() + other.x(), self.y() + other.y()])
+impl Point2D {
+    pub fn zero() -> Self {
+        Self([0.0, 0.0])
+    }
+
+    pub fn one() -> Self {
+        Self([1.0, 1.0])
+    }
+
+    pub fn is_nan(&self) -> bool {
+        self.x().is_nan() || self.y().is_nan()
     }
 }
 
-impl Sub for Point4D {
-    type Output = Point4D;
-
-    fn sub(self, other: Point4D) -> Point4D {
-        Point4D([self.x() - other.x(), self.y() - other.y()])
-    }
-}
-
-impl Mul for Point4D {
-    type Output = Point4D;
-
-    fn mul(self, other: Point4D) -> Point4D {
-        Point4D([self.x() * other.x(), self.y() * other.y()])
+impl From<Point2D> for [f64; 2] {
+    fn from(p: Point2D) -> [f64; 2] {
+        p.0
     }
 }
 

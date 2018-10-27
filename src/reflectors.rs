@@ -5,7 +5,7 @@ use spade::primitives::SimpleEdge;
 use spade::rtree::RTree;
 
 use approximation::{Equation, Interval, View};
-use spatial::{Point2D, Point4D, Quad, SpatialObjectWithData};
+use spatial::{Pair, Point2D, Quad, SpatialObjectWithData};
 
 /// A `ReflectionApproximator` provides a method to approximate points lying along the reflection
 /// of a `figure` equation in a `mirror` equation.
@@ -181,11 +181,10 @@ impl ReflectionApproximator for QuadraticApproximator {
                         quad.edges[0].distance2(&point),
                         quad.edges[2].distance2(&point),
                     ]);
-                    let factor = Point2D::one() - dis.div(dis.x() + dis.y());
-                    let [base, end] = [Point4D::new([a, d]), Point4D::new([b, c])];
+                    let factor = Point2D::one() - dis.div(dis.sum());
+                    let [base, end] = [Pair::new([a, d]), Pair::new([b, c])];
 
-                    let images = (base + (end - base).mul(proj)).mul(factor);
-                    images.x() + images.y()
+                    ((base + (end - base) * Pair::diag(proj)) * Pair::diag(factor)).sum()
                 }).collect::<Vec<_>>()
             })
             .collect()
