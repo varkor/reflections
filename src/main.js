@@ -101,6 +101,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     let start = true;
+    let recomputed = false;
 
     function render() {
         canvas.clear();
@@ -128,7 +129,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             PERFORMANCE_MARKERS.CANVAS_RENDER,
                         );
                         console.log("");
-                    } else {
+                    } else if (recomputed) {
                         PerformanceLogger.log(
                             PERFORMANCE_MARKERS.START_MARKER,
                             PERFORMANCE_MARKERS.WASM_BINDGEN_CALL,
@@ -138,6 +139,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         console.log("");
                     }
                     start = false;
+                    recomputed = false;
                 });
             });
         }
@@ -166,7 +168,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 bindings: Array.from(bindings).filter(binding => present_vars.has(binding[0])),
             }));
 
-            recompute = false;
+            recomputed = true;
 
             if (!start) {
                 performance.mark(PERFORMANCE_MARKERS.START_MARKER);
