@@ -1,7 +1,5 @@
 "use strict";
 
-// FIXME: drawing twice.
-
 performance.mark(PERFORMANCE_MARKERS.START_MARKER);
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -120,7 +118,27 @@ document.addEventListener("DOMContentLoaded", () => {
                 let [_, normals] = data;
 
                 plot_normals(normals);
-                reflection.plot(canvas, view, pointer);
+                reflection.plot(canvas, view, pointer).then(() => {
+                    if (start) {
+                        PerformanceLogger.log(
+                            PERFORMANCE_MARKERS.START_MARKER,
+                            PERFORMANCE_MARKERS.DOM_CONTENT_LOAD,
+                            PERFORMANCE_MARKERS.WASM_BINDGEN_CALL,
+                            PERFORMANCE_MARKERS.WASM_BINDGEN_PARSE,
+                            PERFORMANCE_MARKERS.CANVAS_RENDER,
+                        );
+                        console.log("");
+                    } else {
+                        PerformanceLogger.log(
+                            PERFORMANCE_MARKERS.START_MARKER,
+                            PERFORMANCE_MARKERS.WASM_BINDGEN_CALL,
+                            PERFORMANCE_MARKERS.WASM_BINDGEN_PARSE,
+                            PERFORMANCE_MARKERS.CANVAS_RENDER,
+                        );
+                        console.log("");
+                    }
+                    start = false;
+                });
             });
         }
     }
@@ -153,39 +171,6 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!start) {
                 performance.mark(PERFORMANCE_MARKERS.START_MARKER);
             }
-            reflection = new NonaffineReflection(
-                mirror_equation,
-                figure_equation,
-                bindings_new,
-                view,
-                settings,
-            );
-            reflection.points.then(data => {
-                let [_, normals] = data;
-
-                plot_normals(normals);
-                reflection.plot(canvas, view, pointer).then(() => {
-                    if (start) {
-                        PerformanceLogger.log(
-                            PERFORMANCE_MARKERS.START_MARKER,
-                            PERFORMANCE_MARKERS.DOM_CONTENT_LOAD,
-                            PERFORMANCE_MARKERS.WASM_BINDGEN_CALL,
-                            PERFORMANCE_MARKERS.WASM_BINDGEN_PARSE,
-                            PERFORMANCE_MARKERS.CANVAS_RENDER,
-                        );
-                        console.log("");
-                    } else {
-                        PerformanceLogger.log(
-                            PERFORMANCE_MARKERS.START_MARKER,
-                            PERFORMANCE_MARKERS.WASM_BINDGEN_CALL,
-                            PERFORMANCE_MARKERS.WASM_BINDGEN_PARSE,
-                            PERFORMANCE_MARKERS.CANVAS_RENDER,
-                        );
-                        console.log("");
-                    }
-                    start = false;
-                });
-            }).catch(() => {});
 
             reflection = new NonaffineReflection(
                 mirror_equation,

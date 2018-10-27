@@ -12,7 +12,7 @@ pub struct Interval {
 
 impl Interval {
     pub fn endpoints(start: f64, end: f64) -> Self {
-        Interval { start, end, step: start - end }
+        Interval { start, end, step: end - start }
     }
 }
 

@@ -126,6 +126,53 @@ impl Div for Point2D {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Point4D([Point2D; 2]);
+
+impl Point4D {
+    pub fn new(p: [Point2D; 2]) -> Self {
+        Self(p)
+    }
+
+    #[inline]
+    pub fn x(&self) -> Point2D {
+        self.0[0]
+    }
+
+    #[inline]
+    pub fn y(&self) -> Point2D {
+        self.0[1]
+    }
+
+    pub fn mul(self, multiplier: Point2D) -> Self {
+        Self([self.x() * multiplier, self.y() * multiplier])
+    }
+}
+
+impl Add for Point4D {
+    type Output = Point4D;
+
+    fn add(self, other: Point4D) -> Point4D {
+        Point4D([self.x() + other.x(), self.y() + other.y()])
+    }
+}
+
+impl Sub for Point4D {
+    type Output = Point4D;
+
+    fn sub(self, other: Point4D) -> Point4D {
+        Point4D([self.x() - other.x(), self.y() - other.y()])
+    }
+}
+
+impl Mul for Point4D {
+    type Output = Point4D;
+
+    fn mul(self, other: Point4D) -> Point4D {
+        Point4D([self.x() * other.x(), self.y() * other.y()])
+    }
+}
+
 /// A `SpatialObject` that also carries data. Methods are simply forwarded to the `SpatialObject`.
 #[derive(Clone)]
 pub struct SpatialObjectWithData<S: SpatialObject, T>(pub S, pub T);
