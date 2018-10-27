@@ -16,6 +16,14 @@ impl Point2D {
         Self(p)
     }
 
+    pub fn zero() -> Self {
+        Self([0.0, 0.0])
+    }
+
+    pub fn one() -> Self {
+        Self([1.0, 1.0])
+    }
+
     pub fn into_inner(self) -> [f64; 2] {
         self.into()
     }
@@ -139,11 +147,10 @@ impl<S: SpatialObject, T> SpatialObject for SpatialObjectWithData<S, T> {
 pub struct Quad<V: PointN + Copy> {
     pub points: [V; 4],
     pub edges: [SimpleEdge<V>; 4],
-    pub diam: V::Scalar,
 }
 
 impl<V: PointN + Copy> Quad<V> {
-    pub fn new(points: [V; 4], zero: V::Scalar) -> Quad<V> {
+    pub fn new(points: [V; 4]) -> Quad<V> {
         Quad {
             points,
             edges: [
@@ -152,7 +159,6 @@ impl<V: PointN + Copy> Quad<V> {
                 SimpleEdge::new(points[2], points[3]),
                 SimpleEdge::new(points[3], points[0]),
             ],
-            diam: zero,
         }
     }
 }

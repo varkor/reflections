@@ -10,6 +10,12 @@ pub struct Interval {
     pub step: f64,
 }
 
+impl Interval {
+    pub fn endpoints(start: f64, end: f64) -> Self {
+        Interval { start, end, step: start - end }
+    }
+}
+
 impl Iterator for Interval {
     type Item = f64;
 
@@ -126,8 +132,12 @@ impl View {
     /// Takes a point in cartesian coördinates and returns the corresponding pixel coördinates of
     /// the point in the canvas.
     pub fn project(&self, p: Point2D) -> Option<[u16; 2]> {
+        if p.is_nan() {
+            return None;
+        }
+
         let q = (p - (self.origin - self.size.div(2.0))) / self.size;
-        if q >= Point2D::new([0.0, 0.0]) && q < Point2D::new([1.0, 1.0]) {
+        if q >= Point2D::zero() && q < Point2D::one() {
             let [x, y] = (q * Point2D::new([self.width as f64, self.height as f64])).into_inner();
             Some([x as u16, y as u16])
         } else {

@@ -87,7 +87,7 @@ pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: Strin
         return String::new();
     };
 
-    let interval = Interval { start: -256.0, end: 256.0, step: 0.5 };
+    let interval = Interval { start: -256.0, end: 256.0, step: 1.0 };
     let width = 640;
     let height = 480;
     let pixels_per_cell = ((thresh / 10.0) as u16).max(1);
