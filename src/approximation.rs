@@ -126,9 +126,9 @@ impl View {
     /// Takes a point in cartesian coördinates and returns the corresponding pixel coördinates of
     /// the point in the canvas.
     pub fn project(&self, p: Point2D) -> Option<[u16; 2]> {
-        let p2 = (p - (self.origin - self.size.div(2.0))) / self.size;
-        if p2 >= Point2D::new([0.0, 0.0]) && p2 < Point2D::new([1.0, 1.0]) {
-            let [x, y] = (p2 * Point2D::new([self.width as f64, self.height as f64])).into_inner();
+        let q = (p - (self.origin - self.size.div(2.0))) / self.size;
+        if q >= Point2D::new([0.0, 0.0]) && q < Point2D::new([1.0, 1.0]) {
+            let [x, y] = (q * Point2D::new([self.width as f64, self.height as f64])).into_inner();
             Some([x as u16, y as u16])
         } else {
             None

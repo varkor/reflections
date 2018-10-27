@@ -2,14 +2,13 @@ use std::cmp::Ordering;
 use std::ops::{Add, Div, Mul, Sub};
 
 use serde::ser::{Serialize, Serializer};
-use spade::{BoundingRect, PointN, SpatialObject};
+use spade::{BoundingRect, PointN, SpatialObject, TwoDimensional};
 use spade::primitives::SimpleEdge;
-use spade::PointNExtensions;
 
 use approximation::OrdFloat;
 
 /// A cartesian point with some helper methods.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Point2D([f64; 2]);
 
 impl Point2D {
@@ -21,16 +20,26 @@ impl Point2D {
         self.into()
     }
 
+    #[inline]
+    pub fn x(&self) -> f64 {
+        self.0[0]
+    }
+
+    #[inline]
+    pub fn y(&self) -> f64 {
+        self.0[1]
+    }
+
     pub fn mul(self, multiplier: f64) -> Self {
-        Self([self.0[0] * multiplier, self.0[1] * multiplier])
+        Self([self.x() * multiplier, self.y() * multiplier])
     }
 
     pub fn div(self, divisor: f64) -> Self {
-        Self([self.0[0] / divisor, self.0[1] / divisor])
+        Self([self.x() / divisor, self.y() / divisor])
     }
 
     pub fn is_nan(&self) -> bool {
-        self.0[0].is_nan() || self.0[1].is_nan()
+        self.x().is_nan() || self.y().is_nan()
     }
 }
 
@@ -46,15 +55,31 @@ impl Serialize for Point2D {
     }
 }
 
-impl PartialEq for Point2D {
-    fn eq(&self, other: &Point2D) -> bool {
-        self.0[0] == other.0[0] && self.0[1] == other.0[1]
+impl PointN for Point2D {
+    type Scalar = f64;
+
+    fn dimensions() -> usize {
+        2
+    }
+
+    fn from_value(value: Self::Scalar) -> Self {
+        Point2D::new([value; 2])
+    }
+
+    fn nth(&self, index: usize) -> &Self::Scalar {
+        &self.0[index]
+    }
+
+    fn nth_mut(&mut self, index: usize) -> &mut Self::Scalar {
+        &mut self.0[index]
     }
 }
 
+impl TwoDimensional for Point2D {}
+
 impl PartialOrd for Point2D {
     fn partial_cmp(&self, other: &Point2D) -> Option<Ordering> {
-        match (self.0[0].partial_cmp(&other.0[0]), self.0[1].partial_cmp(&other.0[1])) {
+        match (self.x().partial_cmp(&other.x()), self.y().partial_cmp(&other.y())) {
             (Some(x), Some(y)) if x == y => Some(x),
             _ => None,
         }
@@ -65,7 +90,7 @@ impl Add for Point2D {
     type Output = Point2D;
 
     fn add(self, other: Point2D) -> Point2D {
-        Point2D([self.0[0] + other.0[0], self.0[1] + other.0[1]])
+        Point2D([self.x() + other.x(), self.y() + other.y()])
     }
 }
 
@@ -73,7 +98,7 @@ impl Sub for Point2D {
     type Output = Point2D;
 
     fn sub(self, other: Point2D) -> Point2D {
-        Point2D([self.0[0] - other.0[0], self.0[1] - other.0[1]])
+        Point2D([self.x() - other.x(), self.y() - other.y()])
     }
 }
 
@@ -81,7 +106,7 @@ impl Mul for Point2D {
     type Output = Point2D;
 
     fn mul(self, other: Point2D) -> Point2D {
-        Point2D([self.0[0] * other.0[0], self.0[1] * other.0[1]])
+        Point2D([self.x() * other.x(), self.y() * other.y()])
     }
 }
 
@@ -89,7 +114,7 @@ impl Div for Point2D {
     type Output = Point2D;
 
     fn div(self, other: Point2D) -> Point2D {
-        Point2D([self.0[0] / other.0[0], self.0[1] / other.0[1]])
+        Point2D([self.x() / other.x(), self.y() / other.y()])
     }
 }
 
@@ -132,32 +157,32 @@ impl<V: PointN + Copy> Quad<V> {
     }
 }
 
-impl SpatialObject for Quad<[f64; 2]> {
-    type Point = [f64; 2];
+impl SpatialObject for Quad<Point2D> {
+    type Point = Point2D;
 
-    fn mbr(&self) -> BoundingRect<[f64; 2]> {
+    fn mbr(&self) -> BoundingRect<Point2D> {
         BoundingRect::from_points(self.points.iter().cloned())
     }
 
-    fn distance2(&self, point: &[f64; 2]) -> f64 {
+    fn distance2(&self, point: &Point2D) -> f64 {
         /// The winding number for a polygon with respect to a point: counts the number of times
         /// the polygon winds around the point. If the winding number is zero, then the point lies
         /// outside the polygon.
         /// This algorithm is based on the one at: http://geomalgorithms.com/a03-_inclusion.html.
-        fn winding_number(point: &[f64; 2], points: &[[f64; 2]; 4]) -> i8 {
+        fn winding_number(point: &Point2D, points: &[Point2D; 4]) -> i8 {
             // The displacement of a point from a line (in effect the determinant of a 2x2 matrix).
-            fn displ(line: [[f64; 2]; 2], point: [f64; 2]) -> f64 {
+            fn displ(line: [Point2D; 2], point: Point2D) -> f64 {
                 let [base, end] = line;
-                let end = end.sub(&base);
-                let point = point.sub(&base);
-                end[0] * point[1] - end[1] * point[0]
+                let end = end - base;
+                let point = point - base;
+                end.x() * point.y() - end.y() * point.x()
             }
 
             (0..4).map(|i| {
-                if (points[i][1] <= point[1]) != (points[(i + 1) % 4][1] <= point[1]) {
+                if (points[i].y() <= point.y()) != (points[(i + 1) % 4].y() <= point.y()) {
                     match displ([points[i], points[(i + 1) % 4]], *point) {
-                        x if x > 0.0 => 1,
-                        x if x < 0.0 => -1,
+                        d if d > 0.0 => 1,
+                        d if d < 0.0 => -1,
                         _ => 0,
                     }
                 } else {
@@ -173,7 +198,7 @@ impl SpatialObject for Quad<[f64; 2]> {
             .unwrap()
             .into();
 
-        if winding_number(point, &self.points) == 0 {
+        if winding_number(&point, &self.points) == 0 {
             min_dis
         } else {
             // If the point is contained inside the shape, we must return a negative distance.

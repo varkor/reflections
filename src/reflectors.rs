@@ -1,16 +1,10 @@
 use std::collections::HashSet;
 
-use spade::PointN;
-use spade::PointNExtensions;
+use spade::{PointN, PointNExtensions, SpatialObject};
 use spade::primitives::SimpleEdge;
 use spade::rtree::RTree;
-use spade::SpatialObject;
 
-use approximation::{Interval, View};
-// use approximation::adaptive_sample;
-use approximation::Equation;
-// use approximation::KeyValue;
-use approximation::OrdFloat;
+use approximation::{Equation, Interval, OrdFloat, View};
 use spatial::{Point2D, Quad, SpatialObjectWithData};
 
 /// A `ReflectionApproximator` provides a method to approximate points lying along the reflection
@@ -23,7 +17,7 @@ pub trait ReflectionApproximator {
         interval: &Interval,
         view: &View,
         scale: f64,
-        glide: f64,
+        translate: f64,
     ) -> Vec<Point2D>;
 }
 
@@ -97,7 +91,7 @@ impl ReflectionApproximator for QuadraticApproximator {
         _interval: &Interval,
         _: &View,
         scale: f64,
-        glide: f64,
+        translate: f64,
     ) -> Vec<Point2D> {
         let mut pairs = vec![];
 
@@ -110,10 +104,10 @@ impl ReflectionApproximator for QuadraticApproximator {
             let normal = mirror.normal(t);
             let samps: Vec<(Point2D, Point2D, (f64, f64))> = (Interval { start: -256.0, end: 256.0, step: 512.0 }).filter_map(|s| {
                 let nfs = (normal.function)(s);
-                let nfms = match (scale == 1.0, glide == 0.0) {
+                let nfms = match (scale == 1.0, translate == 0.0) {
                     (true, true) => nfs,
                     (_, true) => (normal.function)(s * scale),
-                    (_, false) => (mirror.normal(t + glide).function)(s * scale),
+                    (_, false) => (mirror.normal(t + translate).function)(s * scale),
                 };
                 if !nfs.is_nan() && !nfms.is_nan() {
                     Some((nfs, nfms, (t, s)))
@@ -133,10 +127,10 @@ impl ReflectionApproximator for QuadraticApproximator {
                     let (l, r) = (wins1[i], wins2[i]);
                     if let (&[s11, s12], &[s21, s22]) = (l, r) {
                         let mut quad = Quad::new([
-                            s11.0.into_inner(), // FIXME
-                            s12.0.into_inner(),
-                            s22.0.into_inner(),
-                            s21.0.into_inner(),
+                            s11.0, // FIXME
+                            s12.0,
+                            s22.0,
+                            s21.0,
                         ], 0.0);
                         quad.diam = [1, 2, 3].iter().map(|&i: &usize| OrdFloat(quad.points[0].sub(&quad.points[i]).length2())).max().unwrap().0.sqrt();
                         pairs.push(SpatialObjectWithData(
@@ -180,7 +174,6 @@ impl ReflectionApproximator for QuadraticApproximator {
                 continue;
             }
 
-            let p = p.into_inner();
             for SpatialObjectWithData(quad, (v1, v2, v3, v4)) in rtree.lookup_in_circle(&p, &0.0) {
                 let a = projection_on_edge(&quad.edges[0], &p) / quad.edges[0].length2();
                 let a_dis = quad.edges[0].distance2(&p);
