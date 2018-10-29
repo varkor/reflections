@@ -25,14 +25,13 @@ use spatial::Point2D;
 
 pub mod approximation;
 use approximation::{Interval, View};
-// pub use approximation::OrdFloat;
 pub use approximation::Equation;
 use reflectors::ReflectionApproximator;
-// pub use approximation::adaptive_sample;
-// pub use approximation::KeyValue;
 
 pub mod reflectors;
 pub use reflectors::{RasterisationApproximator, LinearApproximator, QuadraticApproximator};
+
+pub mod sampling;
 
 #[wasm_bindgen]
 extern "C" {

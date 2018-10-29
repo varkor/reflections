@@ -1,13 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
-use spade::{PointN, PointNExtensions /* FIXME */, SpatialObject};
+use spade::SpatialObject;
 use spade::primitives::SimpleEdge;
 use spade::rtree::RTree;
 
 use approximation::{Equation, Interval, View};
 use spatial::{Pair, Point2D, Quad, SpatialObjectWithData};
-
-use super::console_log;
 
 /// A `ReflectionApproximator` provides a method to approximate points lying along the reflection
 /// of a `figure` equation in a `mirror` equation.
@@ -21,6 +19,11 @@ pub trait ReflectionApproximator {
         scale: f64,
         translate: f64,
     ) -> Vec<Point2D>;
+}
+
+/// Find the distance of a point projected along an edge.
+fn projection_on_edge(edge: &SimpleEdge<Point2D>, p: Point2D) -> f64 {
+    ((p - edge.from) * (edge.to - edge.from)).sum()
 }
 
 /// Approximation of a reflection using a rasterisation technique: splitting the view up into a grid
@@ -60,7 +63,7 @@ impl ReflectionApproximator for RasterisationApproximator {
                     // In some cases, we can use cached computations to calculate the reflections.
                     let image = match (scale == 1.0, translate == 0.0) {
                         (true, true) => point,
-                        (_, true) => (normal.function)(s * scale),
+                        (false, true) => (normal.function)(s * scale),
                         (_, false) => (mirror.normal(t + translate).function)(s * scale),
                     };
                     grid[x as usize + y as usize * cols].push(image);
@@ -114,7 +117,7 @@ impl ReflectionApproximator for QuadraticApproximator {
                     // In some cases, we can use cached computations to calculate the reflections.
                     let image = match (scale == 1.0, translate == 0.0) {
                         (true, true) => point,
-                        (_, true) => (normal.function)(s * scale),
+                        (false, true) => (normal.function)(s * scale),
                         (_, false) => (mirror.normal(t + translate).function)(s * scale),
                     };
                     if !image.is_nan() {
@@ -157,34 +160,28 @@ impl ReflectionApproximator for QuadraticApproximator {
 
         let mut reflection = HashMap::new();
 
+        // Sample points along the figure and find all quads within which they lie.
         for point in figure.sample(&interval).into_iter().filter(|point| !point.is_nan()) {
             rtree.lookup_in_circle(&point, &0.0).iter().for_each(|quad| {
                 reflection.entry((quad.1).0).or_insert(vec![]).push(point);
             });
         }
 
-        fn projection_on_edge<V: PointN>(edge: &SimpleEdge<V>, query_point: &V) -> V::Scalar {
-            let (p1, p2) = (&edge.from, &edge.to);
-            let dir = p2.sub(p1);
-            let s = query_point.sub(p1).dot(&dir);
-            s
-        }
-
         reflection.into_iter()
             .map(|(index, points)| (reflection_regions[index].clone(), points))
             .flat_map(|(SpatialObjectWithData(quad, (_, (a, b, c, d))), points)| {
-                points.iter().map(|point| {
+                points.into_iter().map(|point| {
                     // Interpolate the possible reflections corresponding to the quad vertices in
                     // comparison to the point.
                     let proj = Pair::new([
-                        projection_on_edge(&quad.edges[0], &point) / quad.edges[0].length2(),
-                        1.0 - projection_on_edge(&quad.edges[2], &point) / quad.edges[2].length2(),
+                        projection_on_edge(&quad.edges[0], point) / quad.edges[0].length2(),
+                        1.0 - projection_on_edge(&quad.edges[2], point) / quad.edges[2].length2(),
                     ]);
                     let dis = Point2D::new([
                         quad.edges[0].distance2(&point),
                         quad.edges[2].distance2(&point),
                     ]);
-                    let factor = Point2D::one() - dis.div(dis.sum());
+                    let factor = Point2D::one() - dis / Point2D::diag(dis.sum());
                     let [base, end] = [Pair::new([a, d]), Pair::new([b, c])];
 
                     ((base + (end - base) * proj.map(Pair::diag)) * factor.map(Pair::diag)).sum()
@@ -205,58 +202,67 @@ impl ReflectionApproximator for LinearApproximator {
         figure: &Equation,
         interval: &Interval,
         _view: &View,
-        _scale: f64,
-        _glide: f64,
+        scale: f64,
+        translate: f64,
     ) -> Vec<Point2D> {
         // A collection of lines with (point, image) data at each point, used for
         // image interpolation.
         let mut reflection_lines = vec![];
 
+        // Sample points along the mirror, mapping points (t, s) to their images.
         for t in interval.clone() {
             let normal = mirror.normal(t);
             let endpoint_interval = Interval::endpoints(interval.start, interval.end);
 
             let samples: Vec<_> = endpoint_interval.map(|s| {
-                ((normal.function)(s), (normal.function)(-s))
+                let point = (normal.function)(s);
+                let image = match (scale == 1.0, translate == 0.0) {
+                    (true, true) => point,
+                    (false, true) => (normal.function)(s * scale),
+                    (_, false) => (mirror.normal(t + translate).function)(s * scale),
+                };
+                (point, image)
             }).collect();
 
             for window in samples.windows(2) {
                 // Guaranteed to pattern match successfully.
                 if let &[(point_l, image_l), (point_r, image_r)] = window {
+                    let index = reflection_lines.len();
                     reflection_lines.push(SpatialObjectWithData(
                         SimpleEdge::new(point_l, point_r),
-                        (image_l, image_r)
+                        (index, (image_l, image_r)),
                     ));
                 }
             }
         }
 
-        let rtree = RTree::bulk_load(reflection_lines);
-        let mut reflection = HashSet::new();
+        let rtree = RTree::bulk_load(reflection_lines.clone());
+        let mut reflection = HashMap::new();
 
         let threshold = self.threshold.sqrt();
 
-        // FIXME: deduplicate
-        fn projection_on_edge<V: PointN>(edge: &SimpleEdge<V>, query_point: &V) -> V::Scalar {
-            let (p1, p2) = (&edge.from, &edge.to);
-            let dir = p2.sub(p1);
-            let s = query_point.sub(p1).dot(&dir);
-            s
+        // Sample points along the figure, finding the closest line segment along the mirror and
+        // interpolating the reflection image.
+        for point in figure.sample(&interval) {
+            rtree.lookup_in_circle(&point, &threshold).iter().for_each(|line| {
+                reflection.entry((line.1).0).or_insert(vec![]).push(point);
+            });
         }
 
-        for p in figure.sample(&interval) {
-            for &SpatialObjectWithData(ref fig, (v1, v2)) in rtree.lookup_in_circle(&p, &threshold) {
-                // Find the closest point on the line `fig` to the point `p` as a parameter from
-                // 0 to 1.
-                let s = projection_on_edge(fig, &p) / fig.length2(); // FIXME: need to check for div-by-zero
-                if s >= 0.0 && s <= 1.0 {
-                    let p = v1 + (v2 - v1).mul(s);
-                    let [x, y] = p.into_inner();
-                    reflection.insert((x.to_bits(), y.to_bits()));
-                }
-            }
-        }
-
-        reflection.iter().map(|(x, y)| Point2D::new([f64::from_bits(*x), f64::from_bits(*y)])).collect()
+        reflection.into_iter()
+            .map(|(index, points)| (reflection_lines[index].clone(), points))
+            .flat_map(|(SpatialObjectWithData(fig, (_, (base, end))), points)| {
+                points.into_iter().filter_map(|point| {
+                    // Find the closest point on the line `fig` to the point `p` as a parameter from
+                    // 0 to 1.
+                    let s = projection_on_edge(&fig, point);
+                    if s >= 0.0 && s <= fig.length2() {
+                        Some(base + (end - base) * Point2D::diag(s / fig.length2()))
+                    } else {
+                        None
+                    }
+                }).collect::<Vec<_>>()
+            })
+            .collect()
     }
 }
