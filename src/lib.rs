@@ -55,14 +55,13 @@ fn parse_equation(string: String) -> Result<parser::Expr, ()> {
 }
 
 fn construct_equation<'a>(string_x: String, string_y: String) -> Result<Equation<'a>, ()> {
-    let expr_x = parse_equation(string_x)?;
-    let expr_y = parse_equation(string_y)?;
+    let expr = [parse_equation(string_x)?, parse_equation(string_y)?];
     Ok(Equation {
-        function: Box::new(move |t| {
+        function: box move |t| {
             let mut bindings = HashMap::new();
             bindings.insert('t', t);
-            Point2D::new([expr_x.evaluate(&bindings), expr_y.evaluate(&bindings)])
-        }),
+            Point2D::new([expr[0].evaluate(&bindings), expr[1].evaluate(&bindings)])
+        },
     })
 }
 
@@ -91,7 +90,6 @@ pub extern fn proof_of_concept(x: f64, y: f64, figure_x: String, figure_y: Strin
     let width = 640;
     let height = 480;
     let pixels_per_cell = (thresh as u16).max(1);
-    console_log!("pixels-per_cell {} {}", thresh, pixels_per_cell);
     let view = View {
         width,
         height,

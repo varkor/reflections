@@ -147,7 +147,7 @@ impl ReflectionApproximator for QuadraticApproximator {
                         let mut quad = Quad::new([a.point, b.point, c.point, d.point]);
                         let index = reflection_regions.len();
                         reflection_regions.push(SpatialObjectWithData(
-                            quad, // FIXME: the data should be associated with each point.
+                            quad,
                             (index, (a.image, b.image, c.image, d.image)),
                         ));
                     }
