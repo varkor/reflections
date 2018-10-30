@@ -116,9 +116,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (reflection !== null) {
             reflection.points.then(data => {
-                let [_, normals] = data;
+                // let [_, normals] = data;
 
-                plot_normals(normals);
+                // plot_normals(normals);
                 reflection.plot(canvas, view, pointer).then(() => {
                     if (start) {
                         PerformanceLogger.log(

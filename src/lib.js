@@ -297,15 +297,18 @@ class NonaffineReflection {
         figure = figure.map(eq => new Equation(eq).substitute(bindings));
         this.points = new Promise((resolve, reject) => {
             // FIXME: clean this code up.
-            const json = window.wasm_bindgen.proof_of_concept(
+            const json = window.wasm_bindgen.render_reflection(
                 view.x,
                 view.y,
+                view.width,
+                view.height,
+                view.scale,
                 figure[0],
                 figure[1],
                 mirror[0],
                 mirror[1],
                 settings.get("method"),
-                settings.get("draw_normals"),
+                // settings.get("draw_normals"),
                 settings.get("threshold"),
                 bindings.get(special_variables.get("scaling")),
                 bindings.get(special_variables.get("translation")),
@@ -324,7 +327,7 @@ class NonaffineReflection {
 
     plot(canvas, view, pointer) {
         return this.points.then(data => {
-            let [mirror, _, figure, reflection] = data;
+            let [mirror, figure, reflection] = data;
             canvas.context.fillStyle = canvas.context.strokeStyle = "hsl(190, 100%, 50%)";
             canvas.plot_equation(view, figure);
             canvas.context.fillStyle = canvas.context.strokeStyle = "hsl(0, 100%, 50%)";
