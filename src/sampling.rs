@@ -74,27 +74,32 @@ impl Metric for f64 {
     }
 }
 
+impl Metric for Point2D {
+    type Output = OrdFloat;
+
+    fn distance(&self, other: &Self) -> Self::Output {
+        OrdFloat((*self - *other).map(|x| x.powf(2.0)).sum())
+    }
+}
+
 /// Sample a range according to a metric, bisecting subranges of the greatest distance to produce
 /// evenly-spaced samples.
 pub fn adaptive_sample<K: Clone + Metric, V: Clone, F: Fn(f64) -> KeyValue<K, V>>(
     f: F,
-    range: &RangeInclusive<f64>,
+    range: RangeInclusive<f64>,
     samples: u64,
 ) -> Vec<V>
     where <K as Metric>::Output: Ord + Debug,
 {
     assert!(samples >= 2);
 
+    // The priority queue containing the segments left to be subdivided.
     let mut pq = BinaryHeap::new();
-
-    let evaled_pair = |t: f64| -> (f64, KeyValue<K, V>) {
-        (t, f(t))
-    };
-
+    // We need a tie-break. A simple ascending accumulator suffices to balance the priorities.
     let mut i = 0;
 
     let mut add_segment = |
-        pq: &mut BinaryHeap<KeyValue<(<K as Metric>::Output, Reverse<i64>), ((f64, KeyValue<K, V>), (f64, KeyValue<K, V>))>>,
+        pq: &mut BinaryHeap<_>,
         low: (f64, KeyValue<K, V>),
         high: (f64, KeyValue<K, V>),
     | {
@@ -102,30 +107,26 @@ pub fn adaptive_sample<K: Clone + Metric, V: Clone, F: Fn(f64) -> KeyValue<K, V>
         i += 1;
     };
 
-    let (t_min, t_max) = range.clone().into_inner();
-    let (min, max) = (evaled_pair(t_min), evaled_pair(t_max));
+    let eval_pair = |t: f64| -> (f64, KeyValue<K, V>) { (t, f(t)) };
+
+    let (t_min, t_max) = range.into_inner();
+    let (min, max) = (eval_pair(t_min), eval_pair(t_max));
+    // `ts` contains an list of the values of `t` to sample to produce an evenly-spaced sampling.
+    // We must at least sample the first and last points.
     let mut ts = vec![(min.1).1.clone(), (max.1).1.clone()];
 
+    // Start off by considering the entire range.
     add_segment(&mut pq, min, max);
 
     while (ts.len() as u64) < samples {
         // Get the segment with the largest distance.
-        let KeyValue(distance, (low, high)) = pq.pop().unwrap();
+        let KeyValue(_, (low, high)) = pq.pop().unwrap();
         // Get the midpoint of the segment.
-        let mid = evaled_pair(low.0 / 2.0 + high.0 / 2.0);
-        println!("{:?} {:?} {:?} {:?}", distance, low.0, high.0, mid.0);
+        let mid = eval_pair(low.0 / 2.0 + high.0 / 2.0);
         ts.push((mid.1).1.clone());
         add_segment(&mut pq, low, mid.clone());
         add_segment(&mut pq, mid, high);
     }
 
     ts
-}
-
-impl Metric for Point2D {
-    type Output = OrdFloat;
-
-    fn distance(&self, other: &Self) -> Self::Output {
-        OrdFloat((*self - *other).map(|x| x.powf(2.0)).sum())
-    }
 }
