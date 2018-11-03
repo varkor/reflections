@@ -118,17 +118,26 @@ impl<'a> Equation<'a> {
 
 /// A view contains information both about the region being displayed (in cartesian coördinates), as
 /// well as the size (in pixels) of the canvas on which it is displayed.
+/// The struct `View` mirrors the JavaScript class `View` and should be kept in sync.
+#[derive(Serialize, Deserialize)]
 pub struct View {
     /// The dimensions of the view canvas in pixels.
     pub width: u16,
     pub height: u16,
     /// The origin (centre) of the region in cartesian coördinates.
     pub origin: Point2D,
-    /// The width and height of the region in cartesian distances.
-    pub size: Point2D,
+    /// The scale factor (in powers of 2) of the displayed region. E.g. `scale = 0` means a 1:1
+    /// aspect ratio; `scale = 1` means zooming in 2x, etc.
+    pub scale: f64,
 }
 
 impl View {
+    /// Returns the width and height of the region in cartesian distances.
+    pub fn size(&self) -> Point2D {
+        let factor = 2.0f64.powf(self.scale);
+        Point2D::new([self.width as f64, self.height as f64]) * Point2D::diag(factor)
+    }
+
     /// Takes a point in cartesian coördinates and returns the corresponding pixel coördinates of
     /// the point in the given region.
     pub fn project(&self, p: Point2D, region: [usize; 2]) -> Option<[usize; 2]> {
@@ -136,9 +145,9 @@ impl View {
             return None;
         }
 
-        let q = p - (self.origin - self.size / Point2D::diag(2.0));
-        if q >= Point2D::zero() && q < self.size {
-            let [x, y] = (q * Point2D::new([region[0] as f64, region[1] as f64]) / self.size).into_inner();
+        let q = p - (self.origin - self.size() / Point2D::diag(2.0));
+        if q >= Point2D::zero() && q < self.size() {
+            let [x, y] = (q * Point2D::new([region[0] as f64, region[1] as f64]) / self.size()).into_inner();
             Some([x as usize, y as usize])
         } else {
             None

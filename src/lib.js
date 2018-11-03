@@ -210,12 +210,12 @@ class Option extends ValueElement {
 }
 
 /// A region of space to be displayed or computed over.
+/// The class `View` mirrors the Rust struct `View` and should be kept in sync.
 class View {
     constructor(canvas) {
         // The centre of the view in cartesian coördinates.
-        [this.x, this.y] = [0, 0];
+        this.origin = [0, 0];
         // The dimensions in pixels.
-        // FIXME: should this be in cartesian coördinates too?
         [this.width, this.height] = [canvas.width, canvas.height];
         // The zoom factor, on a base-2 exponential scale. I.e. 0 is unzoomed; 1 is 2x; -1 is 0.5x.
         this.scale = 0;
@@ -242,8 +242,8 @@ class Graph extends Canvas {
         const scale = 2 ** view.scale;
         for (const [px, py] of points) {
             const [x, y] = [
-                (px - view.x) * scale + view.width / 2,
-                (py - view.y) * scale + view.height / 2,
+                (px - view.origin[0]) * scale + view.width / 2,
+                (py - view.origin[1]) * scale + view.height / 2,
             ];
             path.lineTo(x * dpr, y * dpr);
             vertices.moveTo(x * dpr, y * dpr);
@@ -291,28 +291,32 @@ const special_variables = new Map([
     ["translation", "τ"],
 ]);
 
+class RenderReflectionArgs {
+    constructor(view, mirror, figure, method, threshold, scale, translate) {
+        this.view = view;
+        this.mirror = mirror;
+        this.figure = figure;
+        this.method = method;
+        this.threshold = threshold;
+        this.scale = scale;
+        this.translate = translate;
+    }
+}
+
 class NonaffineReflection {
     constructor(mirror, figure, bindings, view, settings) {
         mirror = mirror.map(eq => new Equation(eq).substitute(bindings));
         figure = figure.map(eq => new Equation(eq).substitute(bindings));
         this.points = new Promise((resolve, reject) => {
-            // FIXME: clean this code up.
-            const json = window.wasm_bindgen.render_reflection(JSON.stringify({
-                x: view.x,
-                y: view.y,
-                width: view.width,
-                height: view.height,
-                zoom: view.scale,
-                figure_x: figure[0],
-                figure_y: figure[1],
-                mirror_x: mirror[0],
-                mirror_y: mirror[1],
-                method: settings.get("method"),
-                // settings.get("draw_normals"),
-                threshold: parseInt(settings.get("threshold")),
-                scale: parseFloat(bindings.get(special_variables.get("scaling"))),
-                translate: parseFloat(bindings.get(special_variables.get("translation"))),
-            }));
+            const json = window.wasm_bindgen.render_reflection(JSON.stringify(new RenderReflectionArgs(
+                view,
+                mirror,
+                figure,
+                settings.get("method"),
+                parseInt(settings.get("threshold")),
+                parseFloat(bindings.get(special_variables.get("scaling"))),
+                parseFloat(bindings.get(special_variables.get("translation"))),
+            )));
             performance.mark(PERFORMANCE_MARKERS.WASM_BINDGEN_CALL);
             try {
                 const data = JSON.parse(json);

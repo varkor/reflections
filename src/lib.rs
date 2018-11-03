@@ -44,7 +44,7 @@ macro_rules! console_log {
 }
 
 /// Construct a parametric equation given the strings corresponding to `x(t)` and `y(t)`.
-fn construct_equation<'a>(string_x: &str, string_y: &str) -> Result<Equation<'a>, ()> {
+fn construct_equation<'a>(string: [&str; 2]) -> Result<Equation<'a>, ()> {
     /// Convert a string into an expression, which can then be evaluated to create an equation.
     fn parse_equation(string: &str) -> Result<parser::Expr, ()> {
         if let Ok(lexemes) = Lexer::scan(string.chars()) {
@@ -56,7 +56,7 @@ fn construct_equation<'a>(string_x: &str, string_y: &str) -> Result<Equation<'a>
         }
     }
 
-    let expr = [parse_equation(string_x)?, parse_equation(string_y)?];
+    let expr = [parse_equation(string[0])?, parse_equation(string[1])?];
     Ok(Equation {
         function: box move |t| {
             let mut bindings = HashMap::new();
@@ -74,15 +74,9 @@ pub extern fn initialise() {
 
 #[derive(Serialize, Deserialize)]
 struct RenderReflectionArgs<'a> {
-    x: f64,
-    y: f64,
-    width: u16,
-    height: u16,
-    zoom: f64,
-    figure_x: &'a str,
-    figure_y: &'a str,
-    mirror_x: &'a str,
-    mirror_y: &'a str,
+    view: View,
+    mirror: [&'a str; 2],
+    figure: [&'a str; 2],
     method: &'a str,
     threshold: f64,
     scale: f64,
@@ -94,42 +88,55 @@ struct RenderReflectionArgs<'a> {
 pub extern fn render_reflection(
     json: String,
 ) -> String {
-    console_log!("Rust {}", json!(RenderReflectionArgs { x: 0.0, y: 0.0, width: 0, height: 0, zoom: 0.0, figure_x: "", figure_y: "", mirror_x: "", mirror_y: "", method: "", threshold: 0.0, scale: 0.0, translate: 0.0 }).to_string());
-    if let Ok(data) = serde_json::from_str::<RenderReflectionArgs>(&json) {
-        let (width, height) = (data.width as u16, data.height as u16);
+    // An empty string represents an error to the JavaScript client.
+    let error_output = String::new();
 
+    if let Ok(data) = serde_json::from_str::<RenderReflectionArgs>(&json) {
         let (figure, mirror) = match (
-            construct_equation(data.figure_x, data.figure_y),
-            construct_equation(data.mirror_x, data.mirror_y),
+            construct_equation(data.figure),
+            construct_equation(data.mirror),
         ) {
             (Ok(figure), Ok(mirror)) => (figure, mirror),
-            _ => return String::new(),
+            _ => return error_output,
         };
 
         let interval = Interval { start: -256.0, end: 256.0, step: 1.0 };
-        let view = View {
-            width,
-            height,
-            origin: Point2D::new([data.x, data.y]),
-            size: Point2D::new([width as f64 * 2.0f64.powf(data.zoom), height as f64 * 2.0f64.powf(data.zoom)]),
-        };
-
-        let (scale, translate, threshold) = (data.scale, data.translate, data.threshold);
 
         let reflection = match data.method.as_ref() {
             "rasterisation" => {
                 let approximator = RasterisationApproximator {
-                    cell_size: (threshold as u16).max(1),
+                    cell_size: (data.threshold as u16).max(1),
                 };
-                approximator.approximate_reflection(&mirror, &figure, &interval, &view, scale, translate)
+                approximator.approximate_reflection(
+                    &mirror,
+                    &figure,
+                    &interval,
+                    &data.view,
+                    data.scale,
+                    data.translate,
+                )
             }
             "linear" => {
-                let approximator = LinearApproximator { threshold };
-                approximator.approximate_reflection(&mirror, &figure, &interval, &view, scale, translate)
+                let approximator = LinearApproximator { threshold: data.threshold };
+                approximator.approximate_reflection(
+                    &mirror,
+                    &figure,
+                    &interval,
+                    &data.view,
+                    data.scale,
+                    data.translate,
+                )
             }
             "quadratic" => {
                 let approximator = QuadraticApproximator;
-                approximator.approximate_reflection(&mirror, &figure, &interval, &view, scale, translate)
+                approximator.approximate_reflection(
+                    &mirror,
+                    &figure,
+                    &interval,
+                    &data.view,
+                    data.scale,
+                    data.translate,
+                )
             }
             _ => panic!("unknown rendering method"),
         };
@@ -141,6 +148,6 @@ pub extern fn render_reflection(
         )).to_string()
 
     } else {
-        String::new()
+        error_output
     }
 }

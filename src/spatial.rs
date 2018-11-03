@@ -1,7 +1,6 @@
 use std::cmp::Ordering;
 use std::ops::{Add, Div, Mul, Sub};
 
-use serde::ser::{Serialize, Serializer};
 use spade::{BoundingRect, PointN, SpadeNum, SpatialObject, TwoDimensional};
 use spade::primitives::SimpleEdge;
 
@@ -9,6 +8,7 @@ use approximation::OrdFloat;
 
 /// A cartesian point with some helper methods.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize)]
 pub struct Pair<T>([T; 2]);
 
 impl<T: Copy> Pair<T> {
@@ -36,12 +36,6 @@ impl<T: Copy> Pair<T> {
 
     pub fn map<S>(self, f: impl Fn(T) -> S) -> Pair<S> {
         Pair([f(self.x()), f(self.y())])
-    }
-}
-
-impl<T: Serialize> Serialize for Pair<T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
-        self.0.serialize(serializer)
     }
 }
 

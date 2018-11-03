@@ -63,8 +63,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 pointer.y - canvas.height / 2,
             ];
             const scale_delta = 2 ** -view.scale - 2 ** -scale_next;
-            view.x += offset_x * scale_delta;
-            view.y -= offset_y * scale_delta;
+            view.origin[0] += offset_x * scale_delta;
+            view.origin[1] -= offset_y * scale_delta;
         }
         view.scale = scale_next;
         rerender(false);
@@ -155,7 +155,10 @@ document.addEventListener("DOMContentLoaded", () => {
             drag_origin.y = pointer.y;
         }
         const scale = 2 ** view.scale;
-        view = { x: view.x - dx / scale, y: view.y + dy / scale, width: canvas.width, height: canvas.height, scale: view.scale };
+        const view_adjusted = new View(canvas);
+        view_adjusted.origin = [view.origin[0] - dx / scale, view.origin[1] + dy / scale];
+        view_adjusted.scale = view.scale;
+        view = view_adjusted;
 
         if (recompute) {
             const t_offset = settings.get("t_offset");
@@ -328,6 +331,8 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             prev_var = var_map.get(v);
         }
+
+        var_container.class_list.toggle("hidden", vars.size === 0);
 
         return vars;
     }
