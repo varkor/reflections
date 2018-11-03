@@ -119,7 +119,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function render(recompute, start = false) {
         /// `draw_equations` assumes we have already computed the reflection and simply need to
         /// redraw it, on account of the view changing.
-        function draw_equations(recomputed = false) {
+        function draw_equations(start, recomputed = false) {
             canvas.clear();
 
             /// Currently, the option to draw normals is disabled, but it's handy to have for debugging.
@@ -197,10 +197,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 settings,
             );
             reflection.points.then(() => {
-                window.requestAnimationFrame(() => draw_equations(true));
+                window.requestAnimationFrame(() => draw_equations(start, true));
             });
         } else {
-            window.requestAnimationFrame(draw_equations);
+            window.requestAnimationFrame(() => draw_equations(start));
         }
     }
 
