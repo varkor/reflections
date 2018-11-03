@@ -294,13 +294,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const all_vars = Array.from(new Set([...var_map.keys(), ...vars]));
         all_vars.sort((a, b) => {
-            if (/[α-ω]/.test(a)) {
-                return -1;
+            if (/[α-ω]/.test(a) ^ /[α-ω]/.test(b)) {
+                // Sort Greek letters before Latin ones.
+                return b.localeCompare(a);
             }
-            if (/[α-ω]/.test(b)) {
-                return 1;
-            }
-            return a.localCompare(b);
+            return a.localeCompare(b);
         });
         let prev_var = null;
         for (const v of all_vars) {

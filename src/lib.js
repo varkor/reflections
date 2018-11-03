@@ -200,7 +200,7 @@ class Select extends ValueElement {
     }
 }
 
-// `<option>`
+/// `<option>`
 class Option extends ValueElement {
     constructor(value, text = value) {
         super("option");
@@ -210,6 +210,7 @@ class Option extends ValueElement {
 }
 
 /// A region of space to be displayed or computed over.
+///
 /// The class `View` mirrors the Rust struct `View` and should be kept in sync.
 class View {
     constructor(canvas) {

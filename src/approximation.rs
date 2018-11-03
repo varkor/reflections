@@ -118,6 +118,7 @@ impl<'a> Equation<'a> {
 
 /// A view contains information both about the region being displayed (in cartesian coördinates), as
 /// well as the size (in pixels) of the canvas on which it is displayed.
+///
 /// The struct `View` mirrors the JavaScript class `View` and should be kept in sync.
 #[derive(Serialize, Deserialize)]
 pub struct View {
@@ -147,7 +148,8 @@ impl View {
 
         let q = p - (self.origin - self.size() / Point2D::diag(2.0));
         if q >= Point2D::zero() && q < self.size() {
-            let [x, y] = (q * Point2D::new([region[0] as f64, region[1] as f64]) / self.size()).into_inner();
+            let region = Point2D::new([region[0] as f64, region[1] as f64]);
+            let [x, y] = (q * region / self.size()).into_inner();
             Some([x as usize, y as usize])
         } else {
             None
