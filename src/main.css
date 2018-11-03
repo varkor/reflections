@@ -2,6 +2,19 @@
     box-sizing: border-box;
 }
 
+:root {
+	--mirror-hue: 0;
+	--figure-hue: 190;
+	--reflection-hue: 280;
+
+	--ui-hue: 200;
+	--ui-secondary-hue: 270;
+
+	--mirror-colour: hsl(var(--mirror-hue), 100%, 50%);
+	--figure-colour: hsl(var(--figure-hue), 100%, 50%);
+	--reflection-colour: hsl(var(--reflection-hue), 100%, 50%);
+}
+
 body {
 	margin: 0;
 
@@ -33,7 +46,7 @@ input[type="text"] {
 
 	background: hsl(0, 0%, 14%);
 	border-radius: 4px;
-	border: hsl(190, 0%, 50%) 2px solid;
+	border: hsl(0, 0%, 50%) 2px solid;
 	outline: none;
 
 	color: hsl(0, 0%, 90%);
@@ -42,31 +55,31 @@ input[type="text"] {
 }
 
 input[type="text"].figure {
-	border: hsl(190, 100%, 50%) 2px solid;
+	border: var(--figure-colour) 2px solid;
 }
 
 input[type="text"].figure:focus {
-	background: hsl(190, 100%, 50%);
+	background: var(--figure-colour);
 
 	color: hsl(0, 0%, 14%);
 }
 
 input[type="text"].figure:focus::selection {
-	background: hsl(190, 100%, 30%);
+	background: hsl(var(--figure-hue), 100%, 30%);
 }
 
 input[type="text"].mirror {
-	border: hsl(0, 100%, 50%) 2px solid;
+	border: var(--mirror-colour) 2px solid;
 }
 
 input[type="text"].mirror:focus {
-	background: hsl(0, 100%, 50%);
+	background: var(--mirror-colour);
 
 	color: hsl(0, 0%, 14%);
 }
 
 input[type="text"].mirror:focus::selection {
-	background: hsl(0, 100%, 30%);
+	background: hsl(var(--mirror-hue), 100%, 30%);
 }
 
 .hidden {
@@ -76,7 +89,7 @@ input[type="text"].mirror:focus::selection {
 header {
 	padding: 2pt 4pt;
 
-	background: hsl(200, 100%, 50%);
+	background: hsl(var(--ui-hue), 100%, 50%);
 
 	font: 300 16pt "Helvetica Neue";
 }
@@ -171,7 +184,7 @@ input[type=range]:focus {
 input::-webkit-slider-runnable-track {
 	height: 1em;
 
-	background: hsl(200, 100%, 50%);
+	background: hsl(var(--ui-hue), 100%, 50%);
 	border-radius: 1em;
 }
 
@@ -180,17 +193,17 @@ input[type=range]::-webkit-slider-thumb {
 	margin-top: -0.25em;
 
 	-webkit-appearance: none;
-	background: hsl(200, 100%, 35%);
+	background: hsl(var(--ui-hue), 100%, 35%);
 	border-radius: 100%;
 	box-shadow: hsla(0, 0%, 0%, 0.1) 0 2px 2px;
 }
 
 input.key::-webkit-slider-runnable-track {
-	background: hsl(270, 100%, 65%);
+	background: hsl(var(--ui-secondary-hue), 100%, 65%);
 }
 
 input[type=range].key::-webkit-slider-thumb {
-	background: hsl(270, 100%, 50%);
+	background: hsl(var(--ui-secondary-hue), 100%, 50%);
 }
 
 input[type=checkbox]:focus {
@@ -204,11 +217,11 @@ input[type=checkbox] {
 	-webkit-appearance: none;
 	background: transparent;
 	border-radius: 4px;
-	border: hsl(200, 100%, 50%) 2px solid;
+	border: hsl(var(--ui-hue), 100%, 50%) 2px solid;
 }
 
 input[type=checkbox]:checked {
-	background: hsl(200, 100%, 50%);
+	background: hsl(var(--ui-hue), 100%, 50%);
 }
 input[type=checkbox]:checked::before {
 	content: "✓";

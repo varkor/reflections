@@ -120,7 +120,7 @@ impl<'a> Equation<'a> {
 /// well as the size (in pixels) of the canvas on which it is displayed.
 ///
 /// The struct `View` mirrors the JavaScript class `View` and should be kept in sync.
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub struct View {
     /// The dimensions of the view canvas in pixels.
     pub width: u16,

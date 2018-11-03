@@ -125,13 +125,16 @@ impl Lexer {
                         break false;
                     }
 
-                    let mut sn = s.clone();
-                    sn.push(c);
-                    let statesn: Vec<_> = states.clone().into_iter().filter(|t| t.matches(&sn, MatchKind::Prefix)).collect();
-                    if !statesn.is_empty() || s.is_empty() {
+                    let mut s_next = s.clone();
+                    s_next.push(c);
+                    let states_next: Vec<_> = states.clone()
+                        .into_iter()
+                        .filter(|t| t.matches(&s_next, MatchKind::Prefix))
+                        .collect();
+                    if !states_next.is_empty() || s.is_empty() {
                         chars.next();
-                        s = sn;
-                        states = statesn;
+                        s = s_next;
+                        states = states_next;
                     } else {
                         break false;
                     }
@@ -142,7 +145,10 @@ impl Lexer {
 
             // Empty strings correspond to whitespace, so we can skip them.
             if !s.is_empty()  {
-                let states: Vec<_> = states.into_iter().filter(|t| t.matches(&s, MatchKind::All)).collect();
+                let states: Vec<_> = states
+                    .into_iter()
+                    .filter(|t| t.matches(&s, MatchKind::All))
+                    .collect();
                 let mut states = states.into_iter();
                 let first = states.next();
                 match (first, states.next()) {
@@ -180,6 +186,7 @@ impl Lexer {
 
 type ParseResult<T> = Result<T, ()>;
 
+/// A parser for expressions.
 #[derive(Clone, Debug)]
 pub struct Parser<I: Iterator<Item = Token> + Clone> {
     tokens: I,

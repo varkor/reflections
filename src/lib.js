@@ -292,6 +292,8 @@ const special_variables = new Map([
     ["translation", "τ"],
 ]);
 
+/// The class `RenderReflectionArgs` mirrors the Rust struct `RenderReflectionArgs` and should be
+/// kept in sync.
 class RenderReflectionArgs {
     constructor(view, mirror, figure, method, threshold, scale, translate) {
         this.view = view;
@@ -304,54 +306,56 @@ class RenderReflectionArgs {
     }
 }
 
+/// The class `RenderReflectionData` mirrors the Rust struct `RenderReflectionData` and should be
+/// kept in sync.
+class RenderReflectionData {
+    constructor(data) {
+        this.mirror = data.mirror;
+        this.figure = data.figure;
+        this.reflection = data.reflection;
+    }
+}
+
 class NonaffineReflection {
     constructor(mirror, figure, bindings, view, settings) {
         mirror = mirror.map(eq => new Equation(eq).substitute(bindings));
         figure = figure.map(eq => new Equation(eq).substitute(bindings));
         this.points = new Promise((resolve, reject) => {
-            const json = window.wasm_bindgen.render_reflection(JSON.stringify(new RenderReflectionArgs(
-                view,
-                mirror,
-                figure,
-                settings.get("method"),
-                parseInt(settings.get("threshold")),
-                parseFloat(bindings.get(special_variables.get("scaling"))),
-                parseFloat(bindings.get(special_variables.get("translation"))),
-            )));
+            const json = window.wasm_bindgen.render_reflection(JSON.stringify(
+                new RenderReflectionArgs(
+                    view,
+                    mirror,
+                    figure,
+                    settings.get("method"),
+                    parseInt(settings.get("threshold")),
+                    parseFloat(bindings.get(special_variables.get("scaling"))),
+                    parseFloat(bindings.get(special_variables.get("translation"))),
+                ),
+            ));
             performance.mark(PERFORMANCE_MARKERS.WASM_BINDGEN_CALL);
             try {
-                const data = JSON.parse(json);
+                const data = new RenderReflectionData(JSON.parse(json));
                 performance.mark(PERFORMANCE_MARKERS.WASM_BINDGEN_PARSE);
                 resolve(data);
             } catch (err) {
-                if (json === "") {
-                    console.error("Empty Rust data");
-                } else {
-                    console.error("Failed to parse Rust data:", json, err);
-                }
                 reject(new Error("failed to parse Rust data"));
             }
         });
     }
 
-    plot(canvas, view, pointer) {
+    plot(canvas, view, _pointer) {
+        function get_CSS_var(name) {
+            return window.getComputedStyle(document.documentElement).getPropertyValue(name);
+        }
+
         return this.points.then(data => {
-            let [mirror, figure, reflection] = data;
-            canvas.context.fillStyle = canvas.context.strokeStyle = "hsl(190, 100%, 50%)";
-            canvas.plot_equation(view, figure);
-            canvas.context.fillStyle = canvas.context.strokeStyle = "hsl(0, 100%, 50%)";
-            canvas.plot_equation(view, mirror);
-            // if (pointer.drag_origin === null && pointer.x !== null && pointer.y !== null) {
-            //     const dpr = window.devicePixelRatio;
-            //     const gradient = canvas.context.createRadialGradient(pointer.x * dpr, canvas.height * dpr - pointer.y * dpr, 0 * dpr, pointer.x * dpr, canvas.height * dpr - pointer.y * dpr, 32 * dpr);
-            //     gradient.addColorStop(0, "yellow");
-            //     gradient.addColorStop(1, "yellow");
-            //     gradient.addColorStop(1, "purple");
-            //     canvas.context.fillStyle = canvas.context.strokeStyle = gradient;
-            // } else {
-                canvas.context.fillStyle = canvas.context.strokeStyle = "hsl(280, 100%, 50%)";
-            // }
-            canvas.plot_points(view, reflection);
+            canvas.context.fillStyle = canvas.context.strokeStyle = get_CSS_var("--figure-colour");
+            canvas.plot_equation(view, data.figure);
+            canvas.context.fillStyle = canvas.context.strokeStyle = get_CSS_var("--mirror-colour");
+            canvas.plot_equation(view, data.mirror);
+            canvas.context.fillStyle = canvas.context.strokeStyle
+                = get_CSS_var("--reflection-colour");
+            canvas.plot_points(view, data.reflection);
             performance.mark(PERFORMANCE_MARKERS.CANVAS_RENDER);
         });
     }

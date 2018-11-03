@@ -15,6 +15,7 @@ extern crate wasm_bindgen;
 pub mod approximation;
 pub mod parser;
 pub mod reflectors;
+// We don't actually make use of `sampling` yet, but we'd like to make sure it continues to compile.
 pub mod sampling;
 pub mod spatial;
 
@@ -22,10 +23,10 @@ use std::collections::HashMap;
 
 use wasm_bindgen::prelude::wasm_bindgen;
 
-pub use approximation::Equation;
+use approximation::Equation;
 use approximation::{Interval, View};
 use parser::{Lexer, Parser};
-pub use reflectors::{RasterisationApproximator, LinearApproximator, QuadraticApproximator};
+use reflectors::{RasterisationApproximator, LinearApproximator, QuadraticApproximator};
 use reflectors::ReflectionApproximator;
 use spatial::Point2D;
 
@@ -72,7 +73,9 @@ pub extern fn initialise() {
     console_error_panic_hook::set_once();
 }
 
-#[derive(Serialize, Deserialize)]
+/// The struct `RenderReflectionArgs` mirrors the JavaScript class `RenderReflectionArgs` and should
+/// be kept in sync.
+#[derive(Deserialize)]
 struct RenderReflectionArgs<'a> {
     view: View,
     mirror: [&'a str; 2],
@@ -81,6 +84,15 @@ struct RenderReflectionArgs<'a> {
     threshold: f64,
     scale: f64,
     translate: f64,
+}
+
+/// The struct `RenderReflectionData` mirrors the JavaScript class `RenderReflectionData` and should
+/// be kept in sync.
+#[derive(Serialize)]
+struct RenderReflectionData {
+    mirror: Vec<Point2D>,
+    figure: Vec<Point2D>,
+    reflection: Vec<Point2D>,
 }
 
 /// Approximate a generalised reflection given a mirror and figure, as a set of points.
@@ -100,6 +112,8 @@ pub extern fn render_reflection(
             _ => return error_output,
         };
 
+        // Currently we used a fix interval over which to sample `t`, but in the future this will
+        // be more flexible.
         let interval = Interval { start: -256.0, end: 256.0, step: 1.0 };
 
         let reflection = match data.method.as_ref() {
@@ -141,12 +155,11 @@ pub extern fn render_reflection(
             _ => panic!("unknown rendering method"),
         };
 
-        json!((
-            mirror.sample(&interval),
-            figure.sample(&interval),
+        json!(RenderReflectionData {
+            mirror: mirror.sample(&interval),
+            figure: figure.sample(&interval),
             reflection,
-        )).to_string()
-
+        }).to_string()
     } else {
         error_output
     }
