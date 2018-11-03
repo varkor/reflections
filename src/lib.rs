@@ -73,33 +73,33 @@ pub extern fn initialise() {
     console_error_panic_hook::set_once();
 }
 
-/// The struct `RenderReflectionArgs` mirrors the JavaScript class `RenderReflectionArgs` and should
-/// be kept in sync.
-#[derive(Deserialize)]
-struct RenderReflectionArgs<'a> {
-    view: View,
-    mirror: [&'a str; 2],
-    figure: [&'a str; 2],
-    method: &'a str,
-    threshold: f64,
-    scale: f64,
-    translate: f64,
-}
-
-/// The struct `RenderReflectionData` mirrors the JavaScript class `RenderReflectionData` and should
-/// be kept in sync.
-#[derive(Serialize)]
-struct RenderReflectionData {
-    mirror: Vec<Point2D>,
-    figure: Vec<Point2D>,
-    reflection: Vec<Point2D>,
-}
-
 /// Approximate a generalised reflection given a mirror and figure, as a set of points.
 #[wasm_bindgen]
 pub extern fn render_reflection(
     json: String,
 ) -> String {
+    /// The struct `RenderReflectionArgs` mirrors the JavaScript class `RenderReflectionArgs` and should
+    /// be kept in sync.
+    #[derive(Deserialize)]
+    struct RenderReflectionArgs<'a> {
+        view: View,
+        mirror: [&'a str; 2],
+        figure: [&'a str; 2],
+        method: &'a str,
+        threshold: f64,
+        scale: f64,
+        translate: f64,
+    }
+
+    /// The struct `RenderReflectionData` mirrors the JavaScript class `RenderReflectionData` and should
+    /// be kept in sync.
+    #[derive(Serialize)]
+    struct RenderReflectionData {
+        mirror: Vec<Point2D>,
+        figure: Vec<Point2D>,
+        reflection: Vec<Point2D>,
+    }
+
     // An empty string represents an error to the JavaScript client.
     let error_output = String::new();
 

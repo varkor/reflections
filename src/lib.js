@@ -1,4 +1,4 @@
-/// Helper class for dealing with DOM elements.
+/// Helper class for dealing with DOM elements. Most methods are chainable.
 class Element {
     constructor(element, classes = []) {
         this.element = typeof element === "string" ? document.createElement(element) : element;
@@ -55,6 +55,7 @@ class Element {
     }
 }
 
+/// `ValueElement`s are those with a `value` attribute.
 class ValueElement extends Element {
     constructor(element, classes = []) {
         super(element, classes);
@@ -266,6 +267,8 @@ class Graph extends Canvas {
     }
 }
 
+/// Performance markers are used to measure performance of certain calls (like calling to WASM or
+/// rendering).
 const PERFORMANCE_MARKERS = {
     START_MARKER: "start-marker",
     DOM_CONTENT_LOAD: "dom-content-load",
@@ -287,37 +290,43 @@ class RustWASMContext {
     }
 }
 
-const special_variables = new Map([
+/// Special variables are those with special meaning, affecting something other than the free
+/// variables in the equations.
+const SPECIAL_VARIABLES = new Map([
     ["scaling", "σ"],
     ["translation", "τ"],
 ]);
 
-/// The class `RenderReflectionArgs` mirrors the Rust struct `RenderReflectionArgs` and should be
-/// kept in sync.
-class RenderReflectionArgs {
-    constructor(view, mirror, figure, method, threshold, scale, translate) {
-        this.view = view;
-        this.mirror = mirror;
-        this.figure = figure;
-        this.method = method;
-        this.threshold = threshold;
-        this.scale = scale;
-        this.translate = translate;
-    }
-}
-
-/// The class `RenderReflectionData` mirrors the Rust struct `RenderReflectionData` and should be
-/// kept in sync.
-class RenderReflectionData {
-    constructor(data) {
-        this.mirror = data.mirror;
-        this.figure = data.figure;
-        this.reflection = data.reflection;
-    }
-}
-
+/// A `NonaffineReflection` represents the data corresponding to (primarily) a sampling of a
+/// reflection of an arbitrary parametric equation in another. All the hard work is actually done in
+/// Rust; this is a wrapper over the top of the WASM bindings.
 class NonaffineReflection {
+    /// Compute a reflection (through Rust WASM).
     constructor(mirror, figure, bindings, view, settings) {
+        /// The class `RenderReflectionArgs` mirrors the Rust struct `RenderReflectionArgs` and
+        /// should be kept in sync.
+        class RenderReflectionArgs {
+            constructor(view, mirror, figure, method, threshold, scale, translate) {
+                this.view = view;
+                this.mirror = mirror;
+                this.figure = figure;
+                this.method = method;
+                this.threshold = threshold;
+                this.scale = scale;
+                this.translate = translate;
+            }
+        }
+
+        /// The class `RenderReflectionData` mirrors the Rust struct `RenderReflectionData` and
+        /// should be kept in sync.
+        class RenderReflectionData {
+            constructor(data) {
+                this.mirror = data.mirror;
+                this.figure = data.figure;
+                this.reflection = data.reflection;
+            }
+        }
+
         mirror = mirror.map(eq => new Equation(eq).substitute(bindings));
         figure = figure.map(eq => new Equation(eq).substitute(bindings));
         this.points = new Promise((resolve, reject) => {
@@ -328,8 +337,8 @@ class NonaffineReflection {
                     figure,
                     settings.get("method"),
                     parseInt(settings.get("threshold")),
-                    parseFloat(bindings.get(special_variables.get("scaling"))),
-                    parseFloat(bindings.get(special_variables.get("translation"))),
+                    parseFloat(bindings.get(SPECIAL_VARIABLES.get("scaling"))),
+                    parseFloat(bindings.get(SPECIAL_VARIABLES.get("translation"))),
                 ),
             ));
             performance.mark(PERFORMANCE_MARKERS.WASM_BINDGEN_CALL);
@@ -338,26 +347,26 @@ class NonaffineReflection {
                 performance.mark(PERFORMANCE_MARKERS.WASM_BINDGEN_PARSE);
                 resolve(data);
             } catch (err) {
-                reject(new Error("failed to parse Rust data"));
+                reject(new Error("Failed to parse Rust data."));
             }
         });
     }
 
-    plot(canvas, view, _pointer) {
+    /// Plot the mirror, figure and reflection.
+    async plot(canvas, view, _pointer) {
         function get_CSS_var(name) {
             return window.getComputedStyle(document.documentElement).getPropertyValue(name);
         }
 
-        return this.points.then(data => {
-            canvas.context.fillStyle = canvas.context.strokeStyle = get_CSS_var("--figure-colour");
-            canvas.plot_equation(view, data.figure);
-            canvas.context.fillStyle = canvas.context.strokeStyle = get_CSS_var("--mirror-colour");
-            canvas.plot_equation(view, data.mirror);
-            canvas.context.fillStyle = canvas.context.strokeStyle
-                = get_CSS_var("--reflection-colour");
-            canvas.plot_points(view, data.reflection);
-            performance.mark(PERFORMANCE_MARKERS.CANVAS_RENDER);
-        });
+        const data = await this.points;
+        canvas.context.fillStyle = canvas.context.strokeStyle = get_CSS_var("--figure-colour");
+        canvas.plot_equation(view, data.figure);
+        canvas.context.fillStyle = canvas.context.strokeStyle = get_CSS_var("--mirror-colour");
+        canvas.plot_equation(view, data.mirror);
+        canvas.context.fillStyle = canvas.context.strokeStyle
+            = get_CSS_var("--reflection-colour");
+        canvas.plot_points(view, data.reflection);
+        performance.mark(PERFORMANCE_MARKERS.CANVAS_RENDER);
     }
 }
 
@@ -427,6 +436,7 @@ class Pointer {
         this.update(event, offset);
     }
 
+    /// Set the (x, y) components of the pointer in response to an event (like a click or touch).
     update(event, offset) {
         this.x = event.pageX - window.scrollX - offset.left;
         this.y = event.pageY - window.scrollY - offset.top;
