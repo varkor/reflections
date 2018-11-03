@@ -297,29 +297,33 @@ class NonaffineReflection {
         figure = figure.map(eq => new Equation(eq).substitute(bindings));
         this.points = new Promise((resolve, reject) => {
             // FIXME: clean this code up.
-            const json = window.wasm_bindgen.render_reflection(
-                view.x,
-                view.y,
-                view.width,
-                view.height,
-                view.scale,
-                figure[0],
-                figure[1],
-                mirror[0],
-                mirror[1],
-                settings.get("method"),
+            const json = window.wasm_bindgen.render_reflection(JSON.stringify({
+                x: view.x,
+                y: view.y,
+                width: view.width,
+                height: view.height,
+                zoom: view.scale,
+                figure_x: figure[0],
+                figure_y: figure[1],
+                mirror_x: mirror[0],
+                mirror_y: mirror[1],
+                method: settings.get("method"),
                 // settings.get("draw_normals"),
-                settings.get("threshold"),
-                bindings.get(special_variables.get("scaling")),
-                bindings.get(special_variables.get("translation")),
-            );
+                threshold: parseInt(settings.get("threshold")),
+                scale: parseFloat(bindings.get(special_variables.get("scaling"))),
+                translate: parseFloat(bindings.get(special_variables.get("translation"))),
+            }));
             performance.mark(PERFORMANCE_MARKERS.WASM_BINDGEN_CALL);
             try {
                 const data = JSON.parse(json);
                 performance.mark(PERFORMANCE_MARKERS.WASM_BINDGEN_PARSE);
                 resolve(data);
             } catch (err) {
-                console.error("Failed to parse Rust data:", json, err);
+                if (json === "") {
+                    console.error("Empty Rust data");
+                } else {
+                    console.error("Failed to parse Rust data:", json, err);
+                }
                 reject(new Error("failed to parse Rust data"));
             }
         });
@@ -368,6 +372,10 @@ class Equation {
 
     toString() {
         return this.string;
+    }
+
+    toJSON() {
+        return this.toString();
     }
 }
 

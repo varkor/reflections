@@ -160,7 +160,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (recompute) {
             const t_offset = settings.get("t_offset");
             const bindings_new = new Map(bindings);
-            bindings_new.set("t", `(t - ${t_offset})`);
+            bindings_new.set("t", `t - ${t_offset}`);
             const present_vars = extract_variables();
             location.hash = encodeURIComponent(JSON.stringify({
                 mirror: mirror_equation,

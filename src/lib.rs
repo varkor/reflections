@@ -7,8 +7,8 @@
 
 extern crate console_error_panic_hook;
 extern crate serde;
-#[macro_use]
-extern crate serde_json;
+#[macro_use] extern crate serde_derive;
+#[macro_use] extern crate serde_json;
 extern crate spade;
 extern crate wasm_bindgen;
 
@@ -44,9 +44,9 @@ macro_rules! console_log {
 }
 
 /// Construct a parametric equation given the strings corresponding to `x(t)` and `y(t)`.
-fn construct_equation<'a>(string_x: String, string_y: String) -> Result<Equation<'a>, ()> {
+fn construct_equation<'a>(string_x: &str, string_y: &str) -> Result<Equation<'a>, ()> {
     /// Convert a string into an expression, which can then be evaluated to create an equation.
-    fn parse_equation(string: String) -> Result<parser::Expr, ()> {
+    fn parse_equation(string: &str) -> Result<parser::Expr, ()> {
         if let Ok(lexemes) = Lexer::scan(string.chars()) {
             let tokens = Lexer::evaluate(lexemes.into_iter()).collect();
             let mut parser = Parser::new(tokens);
@@ -72,60 +72,75 @@ pub extern fn initialise() {
     console_error_panic_hook::set_once();
 }
 
-/// Approximate a generalised reflection given a mirror and figure, as a set of points.
-#[wasm_bindgen]
-pub extern fn render_reflection(
+#[derive(Serialize, Deserialize)]
+struct RenderReflectionArgs<'a> {
     x: f64,
     y: f64,
     width: u16,
     height: u16,
     zoom: f64,
-    figure_x: String,
-    figure_y: String,
-    mirror_x: String,
-    mirror_y: String,
-    method: String,
+    figure_x: &'a str,
+    figure_y: &'a str,
+    mirror_x: &'a str,
+    mirror_y: &'a str,
+    method: &'a str,
     threshold: f64,
     scale: f64,
-    translate: f64
+    translate: f64,
+}
+
+/// Approximate a generalised reflection given a mirror and figure, as a set of points.
+#[wasm_bindgen]
+pub extern fn render_reflection(
+    json: String,
 ) -> String {
-    let (figure, mirror) = match (
-        construct_equation(figure_x, figure_y),
-        construct_equation(mirror_x, mirror_y),
-    ) {
-        (Ok(figure), Ok(mirror)) => (figure, mirror),
-        _ => return String::new(),
-    };
+    console_log!("Rust {}", json!(RenderReflectionArgs { x: 0.0, y: 0.0, width: 0, height: 0, zoom: 0.0, figure_x: "", figure_y: "", mirror_x: "", mirror_y: "", method: "", threshold: 0.0, scale: 0.0, translate: 0.0 }).to_string());
+    if let Ok(data) = serde_json::from_str::<RenderReflectionArgs>(&json) {
+        let (width, height) = (data.width as u16, data.height as u16);
 
-    let interval = Interval { start: -256.0, end: 256.0, step: 1.0 };
-    let view = View {
-        width,
-        height,
-        origin: Point2D::new([x, y]),
-        size: Point2D::new([width as f64 * 2.0f64.powf(zoom), height as f64 * 2.0f64.powf(zoom)]),
-    };
+        let (figure, mirror) = match (
+            construct_equation(data.figure_x, data.figure_y),
+            construct_equation(data.mirror_x, data.mirror_y),
+        ) {
+            (Ok(figure), Ok(mirror)) => (figure, mirror),
+            _ => return String::new(),
+        };
 
-    let reflection = match method.as_ref() {
-        "rasterisation" => {
-            let approximator = RasterisationApproximator {
-                cell_size: (threshold as u16).max(1),
-            };
-            approximator.approximate_reflection(&mirror, &figure, &interval, &view, scale, translate)
-        }
-        "linear" => {
-            let approximator = LinearApproximator { threshold };
-            approximator.approximate_reflection(&mirror, &figure, &interval, &view, scale, translate)
-        }
-        "quadratic" => {
-            let approximator = QuadraticApproximator;
-            approximator.approximate_reflection(&mirror, &figure, &interval, &view, scale, translate)
-        }
-        _ => panic!("unknown rendering method"),
-    };
+        let interval = Interval { start: -256.0, end: 256.0, step: 1.0 };
+        let view = View {
+            width,
+            height,
+            origin: Point2D::new([data.x, data.y]),
+            size: Point2D::new([width as f64 * 2.0f64.powf(data.zoom), height as f64 * 2.0f64.powf(data.zoom)]),
+        };
 
-    json!((
-        mirror.sample(&interval),
-        figure.sample(&interval),
-        reflection,
-    )).to_string()
+        let (scale, translate, threshold) = (data.scale, data.translate, data.threshold);
+
+        let reflection = match data.method.as_ref() {
+            "rasterisation" => {
+                let approximator = RasterisationApproximator {
+                    cell_size: (threshold as u16).max(1),
+                };
+                approximator.approximate_reflection(&mirror, &figure, &interval, &view, scale, translate)
+            }
+            "linear" => {
+                let approximator = LinearApproximator { threshold };
+                approximator.approximate_reflection(&mirror, &figure, &interval, &view, scale, translate)
+            }
+            "quadratic" => {
+                let approximator = QuadraticApproximator;
+                approximator.approximate_reflection(&mirror, &figure, &interval, &view, scale, translate)
+            }
+            _ => panic!("unknown rendering method"),
+        };
+
+        json!((
+            mirror.sample(&interval),
+            figure.sample(&interval),
+            reflection,
+        )).to_string()
+
+    } else {
+        String::new()
+    }
 }
