@@ -1,6 +1,5 @@
 #![feature(box_syntax)]
 #![feature(euclidean_division)]
-#![feature(self_struct_ctor)]
 #![feature(try_trait)]
 
 #![deny(bare_trait_objects)]

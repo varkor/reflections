@@ -144,7 +144,7 @@ impl ReflectionApproximator for QuadraticApproximator {
                     // right.
                     // Again, this pattern match is guaranteed.
                     if let (&[a, b], &[d, c]) = (l, r) {
-                        let mut quad = Quad::new([a.point, b.point, c.point, d.point]);
+                        let quad = Quad::new([a.point, b.point, c.point, d.point]);
                         let index = reflection_regions.len();
                         reflection_regions.push(SpatialObjectWithData(
                             quad,

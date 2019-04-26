@@ -54,7 +54,7 @@ const TAU: f64 = 2.0 * PI;
 
 impl Angle {
     pub fn new(a: f64) -> Self {
-        Self(a.mod_euc(TAU))
+        Self(a.rem_euclid(TAU))
     }
 }
 
@@ -62,7 +62,7 @@ impl Metric for Angle {
     type Output = OrdFloat;
 
     fn distance(&self, other: &Self) -> Self::Output {
-        OrdFloat(((self.0 - other.0 + PI).mod_euc(TAU) - PI).abs())
+        OrdFloat(((self.0 - other.0 + PI).rem_euclid(TAU) - PI).abs())
     }
 }
 
