@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use spatial::Point2D;
+use crate::spatial::Point2D;
 
 /// A closed interval; essentially a floating-point `RangeInclusive` with some convenience methods.
 #[derive(Clone)]
@@ -93,7 +93,7 @@ impl<'a> Equation<'a> {
     }
 
     /// Return a new equation representing the normal at the given `t`.
-    pub fn normal(&self, t: f64) -> Equation {
+    pub fn normal(&self, t: f64) -> Equation<'_> {
         let [mx, my] = (self.function)(t).into_inner();
         let [dx, dy] = self.derivative(t).into_inner();
 

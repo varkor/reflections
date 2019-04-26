@@ -2,6 +2,7 @@
 name = "reflections"
 version = "0.1.0"
 authors = ["varkor <github@varkor.com>"]
+edition = "2018"
 
 [lib]
 crate-type = ["lib", "cdylib"]

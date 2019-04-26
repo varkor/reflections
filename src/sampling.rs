@@ -4,8 +4,8 @@ use std::f64::consts::PI;
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
 
-use approximation::OrdFloat;
-use spatial::Point2D;
+use crate::approximation::OrdFloat;
+use crate::spatial::Point2D;
 
 /// A simple key-value pair. Traits are implemented solely on the key.
 #[derive(Clone, Copy)]
@@ -35,7 +35,7 @@ impl<K: Ord, V> Ord for KeyValue<K, V> {
 pub trait Metric {
     type Output: Ord;
 
-    fn distance(&self, &Self) -> Self::Output;
+    fn distance(&self, _: &Self) -> Self::Output;
 }
 
 impl Metric for () {

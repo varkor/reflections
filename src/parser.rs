@@ -282,7 +282,7 @@ impl FromStr for Function {
 }
 
 impl fmt::Display for Function {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", match self {
             Function::Sin => "sin",
             Function::Cos => "cos",
@@ -301,7 +301,7 @@ impl fmt::Display for Function {
 }
 
 impl fmt::Debug for Function {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self)
     }
 }
@@ -618,7 +618,7 @@ impl Expr {
 }
 
 impl fmt::Display for Expr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expr::Number(x) => write!(f, "{}", x),
             Expr::Var(v) => write!(f, "{}", v),

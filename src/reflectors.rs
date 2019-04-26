@@ -4,16 +4,16 @@ use spade::SpatialObject;
 use spade::primitives::SimpleEdge;
 use spade::rtree::RTree;
 
-use approximation::{Equation, Interval, View};
-use spatial::{Pair, Point2D, Quad, SpatialObjectWithData};
+use crate::approximation::{Equation, Interval, View};
+use crate::spatial::{Pair, Point2D, Quad, SpatialObjectWithData};
 
 /// A `ReflectionApproximator` provides a method to approximate points lying along the reflection
 /// of a `figure` equation in a `mirror` equation.
 pub trait ReflectionApproximator {
     fn approximate_reflection(
         &self,
-        mirror: &Equation,
-        figure: &Equation,
+        mirror: &Equation<'_>,
+        figure: &Equation<'_>,
         interval: &Interval,
         view: &View,
         scale: f64,
@@ -37,8 +37,8 @@ pub struct RasterisationApproximator {
 impl ReflectionApproximator for RasterisationApproximator {
     fn approximate_reflection(
         &self,
-        mirror: &Equation,
-        figure: &Equation,
+        mirror: &Equation<'_>,
+        figure: &Equation<'_>,
         interval: &Interval,
         view: &View,
         scale: f64,
@@ -91,8 +91,8 @@ pub struct QuadraticApproximator;
 impl ReflectionApproximator for QuadraticApproximator {
     fn approximate_reflection(
         &self,
-        mirror: &Equation,
-        figure: &Equation,
+        mirror: &Equation<'_>,
+        figure: &Equation<'_>,
         interval: &Interval,
         _: &View,
         scale: f64,
@@ -198,8 +198,8 @@ pub struct LinearApproximator {
 impl ReflectionApproximator for LinearApproximator {
     fn approximate_reflection(
         &self,
-        mirror: &Equation,
-        figure: &Equation,
+        mirror: &Equation<'_>,
+        figure: &Equation<'_>,
         interval: &Interval,
         _view: &View,
         scale: f64,

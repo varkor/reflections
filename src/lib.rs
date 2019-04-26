@@ -4,12 +4,10 @@
 
 #![deny(bare_trait_objects)]
 
-extern crate console_error_panic_hook;
-extern crate serde;
+use console_error_panic_hook;
+
 #[macro_use] extern crate serde_derive;
 #[macro_use] extern crate serde_json;
-extern crate spade;
-extern crate wasm_bindgen;
 
 pub mod approximation;
 pub mod parser;
@@ -22,12 +20,12 @@ use std::collections::HashMap;
 
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use approximation::Equation;
-use approximation::{Interval, View};
-use parser::{Lexer, Parser};
-use reflectors::{RasterisationApproximator, LinearApproximator, QuadraticApproximator};
-use reflectors::ReflectionApproximator;
-use spatial::Point2D;
+use crate::approximation::Equation;
+use crate::approximation::{Interval, View};
+use crate::parser::{Lexer, Parser};
+use crate::reflectors::{RasterisationApproximator, LinearApproximator, QuadraticApproximator};
+use crate::reflectors::ReflectionApproximator;
+use crate::spatial::Point2D;
 
 // It's helpful to be able to log error messages to the JavaScript console, so we export some
 // methods to do so here.

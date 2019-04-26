@@ -4,7 +4,7 @@ use std::ops::{Add, Div, Mul, Sub};
 use spade::{BoundingRect, PointN, SpadeNum, SpatialObject, TwoDimensional};
 use spade::primitives::SimpleEdge;
 
-use approximation::OrdFloat;
+use crate::approximation::OrdFloat;
 
 /// A cartesian point with some helper methods.
 #[derive(Clone, Copy, Debug, PartialEq)]
