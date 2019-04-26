@@ -1,11 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use spade::SpatialObject;
-use spade::primitives::SimpleEdge;
-use spade::rtree::RTree;
+use rstar::{AABB, primitives::Line, PointDistance, RTree};
 
 use crate::approximation::{Equation, Interval, View};
-use crate::spatial::{Pair, Point2D, Quad, SpatialObjectWithData};
+use crate::spatial::{Pair, Point2D, Quad, RTreeObjectWithData};
 
 /// A `ReflectionApproximator` provides a method to approximate points lying along the reflection
 /// of a `figure` equation in a `mirror` equation.
@@ -22,7 +20,7 @@ pub trait ReflectionApproximator {
 }
 
 /// Find the distance of a point projected along an edge.
-fn projection_on_edge(edge: &SimpleEdge<Point2D>, p: Point2D) -> f64 {
+fn projection_on_edge(edge: &Line<Point2D>, p: Point2D) -> f64 {
     ((p - edge.from) * (edge.to - edge.from)).sum()
 }
 
@@ -146,7 +144,7 @@ impl ReflectionApproximator for QuadraticApproximator {
                     if let (&[a, b], &[d, c]) = (l, r) {
                         let quad = Quad::new([a.point, b.point, c.point, d.point]);
                         let index = reflection_regions.len();
-                        reflection_regions.push(SpatialObjectWithData(
+                        reflection_regions.push(RTreeObjectWithData(
                             quad,
                             (index, (a.image, b.image, c.image, d.image)),
                         ));
@@ -162,24 +160,26 @@ impl ReflectionApproximator for QuadraticApproximator {
 
         // Sample points along the figure and find all quads within which they lie.
         for point in figure.sample(&interval).into_iter().filter(|point| !point.is_nan()) {
-            rtree.lookup_in_circle(&point, &0.0).iter().for_each(|quad| {
+            rtree.locate_all_at_point(&point).for_each(|quad| {
                 reflection.entry((quad.1).0).or_insert(vec![]).push(point);
             });
         }
 
         reflection.into_iter()
             .map(|(index, points)| (reflection_regions[index].clone(), points))
-            .flat_map(|(SpatialObjectWithData(quad, (_, (a, b, c, d))), points)| {
+            .flat_map(|(RTreeObjectWithData(quad, (_, (a, b, c, d))), points)| {
                 points.into_iter().map(|point| {
                     // Interpolate the possible reflections corresponding to the quad vertices in
                     // comparison to the point.
+                    let len_a = (quad.edges[0].to - quad.edges[0].from).length_2();
+                    let len_b = (quad.edges[2].to - quad.edges[2].from).length_2();
                     let proj = Pair::new([
-                        projection_on_edge(&quad.edges[0], point) / quad.edges[0].length2(),
-                        1.0 - projection_on_edge(&quad.edges[2], point) / quad.edges[2].length2(),
+                        projection_on_edge(&quad.edges[0], point) / len_a,
+                        1.0 - projection_on_edge(&quad.edges[2], point) / len_b,
                     ]);
                     let dis = Point2D::new([
-                        quad.edges[0].distance2(&point),
-                        quad.edges[2].distance2(&point),
+                        quad.edges[0].distance_2(&point),
+                        quad.edges[2].distance_2(&point),
                     ]);
                     let factor = Point2D::one() - dis / Point2D::diag(dis.sum());
                     let [base, end] = [Pair::new([a, d]), Pair::new([b, c])];
@@ -228,8 +228,8 @@ impl ReflectionApproximator for LinearApproximator {
                 // Guaranteed to pattern match successfully.
                 if let &[(point_l, image_l), (point_r, image_r)] = window {
                     let index = reflection_lines.len();
-                    reflection_lines.push(SpatialObjectWithData(
-                        SimpleEdge::new(point_l, point_r),
+                    reflection_lines.push(RTreeObjectWithData(
+                        Line::new(point_l, point_r),
                         (index, (image_l, image_r)),
                     ));
                 }
@@ -244,20 +244,26 @@ impl ReflectionApproximator for LinearApproximator {
         // Sample points along the figure, finding the closest line segment along the mirror and
         // interpolating the reflection image.
         for point in figure.sample(&interval) {
-            rtree.lookup_in_circle(&point, &threshold).iter().for_each(|line| {
-                reflection.entry((line.1).0).or_insert(vec![]).push(point);
+            let offset = Point2D::diag(threshold);
+            rtree.locate_in_envelope_intersecting(
+                &AABB::from_corners(point - offset, point + offset)
+            ).for_each(|line| {
+                if line.distance_2(&point) <= threshold {
+                    reflection.entry((line.1).0).or_insert(vec![]).push(point);
+                }
             });
         }
 
         reflection.into_iter()
             .map(|(index, points)| (reflection_lines[index].clone(), points))
-            .flat_map(|(SpatialObjectWithData(fig, (_, (base, end))), points)| {
+            .flat_map(|(RTreeObjectWithData(fig, (_, (base, end))), points)| {
                 points.into_iter().filter_map(|point| {
                     // Find the closest point on the line `fig` to the point `p` as a parameter from
                     // 0 to 1.
                     let s = projection_on_edge(&fig, point);
-                    if s >= 0.0 && s <= fig.length2() {
-                        Some(base + (end - base) * Point2D::diag(s / fig.length2()))
+                    let len = (fig.to - fig.from).length_2();
+                    if s >= 0.0 && s <= len {
+                        Some(base + (end - base) * Point2D::diag(s / len))
                     } else {
                         None
                     }

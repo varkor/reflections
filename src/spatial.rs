@@ -1,8 +1,9 @@
 use std::cmp::Ordering;
+use std::fmt::Debug;
 use std::ops::{Add, Div, Mul, Sub};
 
-use spade::{BoundingRect, PointN, SpadeNum, SpatialObject, TwoDimensional};
-use spade::primitives::SimpleEdge;
+use num_traits::{sign::Signed, bounds::Bounded};
+use rstar::{AABB, Envelope, Point, PointDistance, primitives::Line, RTreeObject};
 
 use crate::approximation::OrdFloat;
 
@@ -39,27 +40,28 @@ impl<T: Copy> Pair<T> {
     }
 }
 
-impl<T: Copy + SpadeNum> PointN for Pair<T> {
+impl<T: Copy + Mul<Output = T> + Add<Output = T>> Pair<T> {
+    pub fn length_2(&self) -> T {
+        self.0[0] * self.0[0] + self.0[1] * self.0[1]
+    }
+}
+
+impl<T: Copy + Debug + PartialOrd + Signed + Bounded> Point for Pair<T> {
     type Scalar = T;
+    const DIMENSIONS: usize = 2;
 
-    fn dimensions() -> usize {
-        2
+    fn generate(generator: impl Fn(usize) -> Self::Scalar) -> Self {
+        Pair([generator(0), generator(1)])
     }
 
-    fn from_value(value: Self::Scalar) -> Self {
-        Pair::diag(value)
-    }
-
-    fn nth(&self, index: usize) -> &Self::Scalar {
-        &self.0[index]
+    fn nth(&self, index: usize) -> Self::Scalar {
+        self.0[index]
     }
 
     fn nth_mut(&mut self, index: usize) -> &mut Self::Scalar {
         &mut self.0[index]
     }
 }
-
-impl<T: Copy + SpadeNum> TwoDimensional for Pair<T> {}
 
 impl<T: Copy + PartialOrd> PartialOrd for Pair<T> {
     fn partial_cmp(&self, other: &Pair<T>) -> Option<Ordering> {
@@ -130,57 +132,65 @@ impl From<Point2D> for [f64; 2] {
     }
 }
 
-/// A `SpatialObject` that also carries data. Methods are simply forwarded to the `SpatialObject`.
+/// An `RTreeObject` that also carries data. Methods are simply forwarded to the `RTreeObject`.
 #[derive(Clone)]
-pub struct SpatialObjectWithData<S: SpatialObject, T>(pub S, pub T);
+pub struct RTreeObjectWithData<S: RTreeObject, T>(pub S, pub T);
 
-impl<S: SpatialObject, T> SpatialObject for SpatialObjectWithData<S, T> {
-    type Point = <S as SpatialObject>::Point;
+impl<S: RTreeObject, T> RTreeObject for RTreeObjectWithData<S, T> {
+    type Envelope = <S as RTreeObject>::Envelope;
 
-    fn mbr(&self) -> BoundingRect<Self::Point> {
-        self.0.mbr()
+    fn envelope(&self) -> Self::Envelope {
+        self.0.envelope()
     }
+}
 
-    fn distance2(&self, point: &Self::Point) -> <Self::Point as PointN>::Scalar {
-        self.0.distance2(point)
+impl<S: RTreeObject + PointDistance, T> PointDistance for RTreeObjectWithData<S, T> {
+    fn distance_2(
+        &self,
+        point: &<Self::Envelope as Envelope>::Point,
+    ) -> <<Self::Envelope as Envelope>::Point as Point>::Scalar {
+        self.0.distance_2(point)
     }
 }
 
 /// A quadrilateral. Used for interpolation between four points.
 #[derive(Clone, Debug)]
-pub struct Quad<V: PointN + Copy> {
+pub struct Quad<V: Copy + Point> {
     pub points: [V; 4],
-    pub edges: [SimpleEdge<V>; 4],
+    pub edges: [Line<V>; 4],
 }
 
-impl<V: PointN + Copy> Quad<V> {
+impl<V: Copy + Point> Quad<V> {
     pub fn new(points: [V; 4]) -> Quad<V> {
         Quad {
             points,
             edges: [
-                SimpleEdge::new(points[0], points[1]),
-                SimpleEdge::new(points[1], points[2]),
-                SimpleEdge::new(points[2], points[3]),
-                SimpleEdge::new(points[3], points[0]),
+                Line::new(points[0], points[1]),
+                Line::new(points[1], points[2]),
+                Line::new(points[2], points[3]),
+                Line::new(points[3], points[0]),
             ],
         }
     }
 }
 
-impl SpatialObject for Quad<Point2D> {
-    type Point = Point2D;
+impl RTreeObject for Quad<Point2D> {
+    type Envelope = AABB<Point2D>;
 
-    fn mbr(&self) -> BoundingRect<Point2D> {
-        BoundingRect::from_points(self.points.iter().cloned())
+    fn envelope(&self) -> Self::Envelope {
+        AABB::from_points(self.points.iter())
     }
+}
 
-    fn distance2(&self, point: &Point2D) -> f64 {
+impl PointDistance for Quad<Point2D> {
+    fn distance_2(&self, point: &Point2D) -> f64 {
         /// The winding number for a polygon with respect to a point: counts the number of times
         /// the polygon winds around the point. If the winding number is zero, then the point lies
         /// outside the polygon.
         /// This algorithm is based on the one at: http://geomalgorithms.com/a03-_inclusion.html.
         fn winding_number(point: &Point2D, points: &[Point2D; 4]) -> i8 {
-            // The displacement of a point from a line (in effect the determinant of a 2x2 matrix).
+            // The displacement of a point from a line
+            // (in effect the determinant of a 2x2 matrix).
             fn displ(line: [Point2D; 2], point: Point2D) -> f64 {
                 let [base, end] = line;
                 let end = end - base;
@@ -203,7 +213,7 @@ impl SpatialObject for Quad<Point2D> {
 
         // The minimum distance from any edge to the point.
         let min_dis = self.edges.iter()
-            .filter_map(|edge| OrdFloat::new(edge.distance2(point)))
+            .filter_map(|edge| OrdFloat::new(edge.distance_2(point)))
             .min()
             .unwrap()
             .into();
