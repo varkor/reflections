@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const canvas = new Graph(WIDTH, HEIGHT).append_to(main);
     // We need to make use of the bounding rect of the canvas, but it's not available until the
     // rendering frame after the canvas has been created.
-    let canvas_offset;
+    let canvas_offset = null;
     // The position of the cursor and where a mouse/touch drag started (if a drag is in progress).
     let [pointer, drag_origin] = [null, null];
     // The view represents the visible region on the canvas.
@@ -83,15 +83,17 @@ document.addEventListener("DOMContentLoaded", () => {
     // If the cursor moves, and a drag is in progress, we need to update the position of the view
     // to pan it.
     window.addEventListener("mousemove", event => {
-        let request = false;
-        if (pointer !== null && drag_origin !== null) {
-            request = true;
-        }
-        const prev_pointer = pointer !== null ? drag_origin : null;
-        pointer = new Pointer(event, canvas_offset);
-        drag_origin = prev_pointer;
-        if (request) {
-            render(false);
+        if (canvas_offset !== null) {
+            let request = false;
+            if (pointer !== null && drag_origin !== null) {
+                request = true;
+            }
+            const prev_pointer = pointer !== null ? drag_origin : null;
+            pointer = new Pointer(event, canvas_offset);
+            drag_origin = prev_pointer;
+            if (request) {
+                render(false);
+            }
         }
     });
 
