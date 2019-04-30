@@ -10,13 +10,12 @@ use crate::spatial::{Pair, Point2D, Quad, RTreeObjectWithData};
 pub trait ReflectionApproximator {
     fn approximate_reflection(
         &self,
-        mirror: &Equation<'_>,
-        figure: &Equation<'_>,
+        mirror: &Equation<'_, f64>,
+        figure: &Equation<'_, f64>,
+        sigma_tau: &Equation<'_, (f64, f64)>,
         interval: &Interval,
         view: &View,
-        scale: f64,
-        translate: f64,
-    ) -> Vec<Point2D>;
+    ) -> (Vec<Point2D>, Option<Vec<(Point2D, Point2D)>>);
 }
 
 /// Find the distance of a point projected along an edge.
@@ -35,13 +34,12 @@ pub struct RasterisationApproximator {
 impl ReflectionApproximator for RasterisationApproximator {
     fn approximate_reflection(
         &self,
-        mirror: &Equation<'_>,
-        figure: &Equation<'_>,
+        mirror: &Equation<'_, f64>,
+        figure: &Equation<'_, f64>,
+        sigma_tau: &Equation<'_, (f64, f64)>,
         interval: &Interval,
         view: &View,
-        scale: f64,
-        translate: f64,
-    ) -> Vec<Point2D> {
+    ) -> (Vec<Point2D> , Option<Vec<(Point2D, Point2D)>>){
         // Calculate the number of cells we need horizontally and vertically. Round up if the view
         // size isn't perfectly divisible by the cell size.
         let [cols, rows] = [
@@ -58,11 +56,12 @@ impl ReflectionApproximator for RasterisationApproximator {
             for s in interval.clone() {
                 let point = (normal.function)(s);
                 if let Some([x, y]) = view.project(point, [cols, rows]) {
+                    let [scale, translate] = (sigma_tau.function)((s, t)).into_inner();
                     // In some cases, we can use cached computations to calculate the reflections.
-                    let image = match (scale == 1.0, translate == 0.0) {
+                    let image = match (scale == s, translate == t) {
                         (true, true) => point,
-                        (false, true) => (normal.function)(s * scale),
-                        (_, false) => (mirror.normal(t + translate).function)(s * scale),
+                        (false, true) => (normal.function)(scale),
+                        (_, false) => (mirror.normal(translate).function)(scale),
                     };
                     grid[x as usize + y as usize * cols].push(image);
                 }
@@ -78,9 +77,9 @@ impl ReflectionApproximator for RasterisationApproximator {
             }
         }
 
-        reflection.into_iter().flat_map(|[x, y]| {
+        (reflection.into_iter().flat_map(|[x, y]| {
             &grid[x as usize + y as usize * cols]
-        }).cloned().collect()
+        }).cloned().collect(), None)
     }
 }
 
@@ -89,19 +88,20 @@ pub struct QuadraticApproximator;
 impl ReflectionApproximator for QuadraticApproximator {
     fn approximate_reflection(
         &self,
-        mirror: &Equation<'_>,
-        figure: &Equation<'_>,
+        mirror: &Equation<'_, f64>,
+        figure: &Equation<'_, f64>,
+        sigma_tau: &Equation<'_, (f64, f64)>,
         interval: &Interval,
         _: &View,
-        scale: f64,
-        translate: f64,
-    ) -> Vec<Point2D> {
+    ) -> (Vec<Point2D> , Option<Vec<(Point2D, Point2D)>>){
         /// A pair corresponding to an image and its reflection.
         #[derive(Clone, Copy)]
         struct ReflectedPair {
             point: Point2D,
             image: Point2D,
         }
+
+        let mut field = vec![];
 
         // Sample points in (t, s) space.
         let samples: Vec<_> = interval.clone().map(|t| {
@@ -112,13 +112,15 @@ impl ReflectionApproximator for QuadraticApproximator {
                 let point = (normal.function)(s);
 
                 if !point.is_nan() {
+                    let [scale, translate] = (sigma_tau.function)((s, t)).into_inner();
                     // In some cases, we can use cached computations to calculate the reflections.
-                    let image = match (scale == 1.0, translate == 0.0) {
+                    let image = match (scale == s, translate == t) {
                         (true, true) => point,
-                        (false, true) => (normal.function)(s * scale),
-                        (_, false) => (mirror.normal(t + translate).function)(s * scale),
+                        (false, true) => (normal.function)(scale),
+                        (_, false) => (mirror.normal(translate).function)(scale),
                     };
                     if !image.is_nan() {
+                        field.push((point, image));
                         return Some(ReflectedPair { point, image });
                     }
                 }
@@ -165,7 +167,7 @@ impl ReflectionApproximator for QuadraticApproximator {
             });
         }
 
-        reflection.into_iter()
+        (reflection.into_iter()
             .map(|(index, points)| (reflection_regions[index].clone(), points))
             .flat_map(|(RTreeObjectWithData(quad, (_, (a, b, c, d))), points)| {
                 points.into_iter().map(|point| {
@@ -187,7 +189,7 @@ impl ReflectionApproximator for QuadraticApproximator {
                     ((base + (end - base) * proj.map(Pair::diag)) * factor.map(Pair::diag)).sum()
                 }).collect::<Vec<_>>()
             })
-            .collect()
+            .collect(), Some(field))
     }
 }
 
@@ -198,13 +200,12 @@ pub struct LinearApproximator {
 impl ReflectionApproximator for LinearApproximator {
     fn approximate_reflection(
         &self,
-        mirror: &Equation<'_>,
-        figure: &Equation<'_>,
+        mirror: &Equation<'_, f64>,
+        figure: &Equation<'_, f64>,
+        sigma_tau: &Equation<'_, (f64, f64)>,
         interval: &Interval,
         _view: &View,
-        scale: f64,
-        translate: f64,
-    ) -> Vec<Point2D> {
+    ) -> (Vec<Point2D> , Option<Vec<(Point2D, Point2D)>>){
         // A collection of lines with (point, image) data at each point, used for
         // image interpolation.
         let mut reflection_lines = vec![];
@@ -216,10 +217,11 @@ impl ReflectionApproximator for LinearApproximator {
 
             let samples: Vec<_> = endpoint_interval.map(|s| {
                 let point = (normal.function)(s);
-                let image = match (scale == 1.0, translate == 0.0) {
+                let [scale, translate] = (sigma_tau.function)((s, t)).into_inner();
+                let image = match (scale == s, translate == 0.0) {
                     (true, true) => point,
-                    (false, true) => (normal.function)(s * scale),
-                    (_, false) => (mirror.normal(t + translate).function)(s * scale),
+                    (false, true) => (normal.function)(scale),
+                    (_, false) => (mirror.normal(translate).function)(scale),
                 };
                 (point, image)
             }).collect();
@@ -254,7 +256,7 @@ impl ReflectionApproximator for LinearApproximator {
             });
         }
 
-        reflection.into_iter()
+        (reflection.into_iter()
             .map(|(index, points)| (reflection_lines[index].clone(), points))
             .flat_map(|(RTreeObjectWithData(fig, (_, (base, end))), points)| {
                 points.into_iter().filter_map(|point| {
@@ -269,6 +271,6 @@ impl ReflectionApproximator for LinearApproximator {
                     }
                 }).collect::<Vec<_>>()
             })
-            .collect()
+            .collect(), None)
     }
 }

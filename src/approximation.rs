@@ -81,19 +81,19 @@ impl From<OrdFloat> for f64 {
     }
 }
 
-/// A parametric equation ℝ → ℝ × ℝ.
-pub struct Equation<'a> {
-    pub function: Box<dyn 'a + Fn(f64) -> Point2D>,
+/// A parametric equation ℝ × ℝ → ℝ × ℝ.
+pub struct Equation<'a, I> {
+    pub function: Box<dyn 'a + Fn(I) -> Point2D>,
 }
 
-impl<'a> Equation<'a> {
+impl<'a> Equation<'a, f64> {
     /// Sample the equation over an interval.
     pub fn sample(&self, interval: &Interval) -> Vec<Point2D> {
         interval.clone().map(|t| (self.function)(t)).collect()
     }
 
     /// Return a new equation representing the normal at the given `t`.
-    pub fn normal(&self, t: f64) -> Equation<'_> {
+    pub fn normal(&self, t: f64) -> Equation<'_, f64> {
         let [mx, my] = (self.function)(t).into_inner();
         let [dx, dy] = self.derivative(t).into_inner();
 

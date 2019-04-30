@@ -166,12 +166,11 @@ class Div extends Element {
 
 /// `<div class="parametric-equation">`
 class ParametricEquationInput extends Div {
-    constructor(action, classes) {
+    constructor(action, bases, classes) {
         super(["parametric-equation"]);
 
-        const BASES = ["x", "y"];
         this.components = [];
-        for (const [i, v] of BASES.entries()) {
+        for (const [i, v] of bases.entries()) {
             this.components.push(
                 new Input("text", classes)
                     .append_to(this)
@@ -180,7 +179,7 @@ class ParametricEquationInput extends Div {
                         action(event, self);
                     }),
             );
-            if (i + 1 < BASES.length) {
+            if (i + 1 < bases.length) {
                 new Element("span", ["divider"]).append_to(this);
             }
         }
@@ -240,7 +239,6 @@ class Graph extends Canvas {
         const vertices = new Path2D();
         const path = new Path2D();
 
-        this.context.beginPath();
         const scale = 2 ** view.scale;
         for (const [px, py] of points) {
             const [x, y] = [
@@ -264,6 +262,35 @@ class Graph extends Canvas {
 
     plot_equation(view, points) {
         this.plot_points(view, points, true);
+    }
+
+    plot_field(view, vectors) {
+        const dpr = window.devicePixelRatio;
+
+        this.context.beginPath();
+
+        const scale = 2 ** view.scale;
+        for (const [[px, py], [qx, qy]] of vectors) {
+            let x, y;
+            [x, y] = [
+                (px - view.origin[0]) * scale + view.width / 2,
+                (py - view.origin[1]) * scale + view.height / 2,
+            ];
+            this.context.moveTo(x * dpr, y * dpr);
+            [x, y] = [
+                (qx - view.origin[0]) * scale + view.width / 2,
+                (qy - view.origin[1]) * scale + view.height / 2,
+            ];
+            this.context.lineTo(x * dpr, y * dpr);
+            // Draw the arrowhead.
+            const dir = Math.atan2(qy - py, qx - px);
+            const [HEAD_SIZE, HEAD_ANGLE] = [5, Math.PI - 0.4];
+            this.context.lineTo((x + Math.cos(dir - HEAD_ANGLE) * HEAD_SIZE) * dpr, (y + Math.sin(dir - HEAD_ANGLE) * HEAD_SIZE) * dpr);
+            this.context.moveTo(x * dpr, y * dpr);
+            this.context.lineTo((x + Math.cos(dir + HEAD_ANGLE) * HEAD_SIZE) * dpr, (y + Math.sin(dir + HEAD_ANGLE) * HEAD_SIZE) * dpr);
+        }
+
+        this.context.stroke();
     }
 }
 
@@ -293,6 +320,7 @@ class RustWASMContext {
 /// Special variables are those with special meaning, affecting something other than the free
 /// variables in the equations.
 const SPECIAL_VARIABLES = new Map([
+    ["transformation", "µ"],
     ["scaling", "σ"],
     ["translation", "τ"],
 ]);
@@ -302,18 +330,17 @@ const SPECIAL_VARIABLES = new Map([
 /// Rust; this is a wrapper over the top of the WASM bindings.
 class NonaffineReflection {
     /// Compute a reflection (through Rust WASM).
-    constructor(mirror, figure, bindings, view, settings) {
+    constructor(mirror, figure, sigma_tau, bindings, view, settings) {
         /// The class `RenderReflectionArgs` mirrors the Rust struct `RenderReflectionArgs` and
         /// should be kept in sync.
         class RenderReflectionArgs {
-            constructor(view, mirror, figure, method, threshold, scale, translate) {
+            constructor(view, mirror, figure, sigma_tau, method, threshold) {
                 this.view = view;
                 this.mirror = mirror;
                 this.figure = figure;
+                this.sigma_tau = sigma_tau;
                 this.method = method;
                 this.threshold = threshold;
-                this.scale = scale;
-                this.translate = translate;
             }
         }
 
@@ -324,21 +351,22 @@ class NonaffineReflection {
                 this.mirror = data.mirror;
                 this.figure = data.figure;
                 this.reflection = data.reflection;
+                this.field = data.field;
             }
         }
 
         mirror = mirror.map(eq => new Equation(eq).substitute(bindings));
         figure = figure.map(eq => new Equation(eq).substitute(bindings));
-        this.points = new Promise((resolve, reject) => {
+        sigma_tau = sigma_tau.map(eq => new Equation(eq).substitute(bindings));
+        this.data = new Promise((resolve, reject) => {
             const json = window.wasm_bindgen.render_reflection(JSON.stringify(
                 new RenderReflectionArgs(
                     view,
                     mirror,
                     figure,
+                    sigma_tau,
                     settings.get("method"),
                     parseInt(settings.get("threshold")),
-                    parseFloat(bindings.get(SPECIAL_VARIABLES.get("scaling"))),
-                    parseFloat(bindings.get(SPECIAL_VARIABLES.get("translation"))),
                 ),
             ));
             performance.mark(PERFORMANCE_MARKERS.WASM_BINDGEN_CALL);
@@ -353,12 +381,16 @@ class NonaffineReflection {
     }
 
     /// Plot the mirror, figure and reflection.
-    async plot(canvas, view, _pointer) {
+    async plot(canvas, view, settings, _pointer) {
         function get_CSS_var(name) {
             return window.getComputedStyle(document.documentElement).getPropertyValue(name);
         }
 
-        const data = await this.points;
+        const data = await this.data;
+        if (settings.get("plot_field")) {
+            canvas.context.fillStyle = canvas.context.strokeStyle = "lime";
+            canvas.plot_field(view, data.field);
+        }
         canvas.context.fillStyle = canvas.context.strokeStyle = get_CSS_var("--figure-colour");
         canvas.plot_equation(view, data.figure);
         canvas.context.fillStyle = canvas.context.strokeStyle = get_CSS_var("--mirror-colour");

@@ -42,7 +42,7 @@ macro_rules! console_log {
 }
 
 /// Construct a parametric equation given the strings corresponding to `x(t)` and `y(t)`.
-fn construct_equation<'a>(string: [&str; 2]) -> Result<Equation<'a>, ()> {
+fn construct_equation<'a>(string: [&str; 2]) -> Result<Equation<'a, f64>, ()> {
     /// Convert a string into an expression, which can then be evaluated to create an equation.
     fn parse_equation(string: &str) -> Result<parser::Expr, ()> {
         if let Ok(lexemes) = Lexer::scan(string.chars()) {
@@ -58,6 +58,29 @@ fn construct_equation<'a>(string: [&str; 2]) -> Result<Equation<'a>, ()> {
     Ok(Equation {
         function: box move |t| {
             let mut bindings = HashMap::new();
+            bindings.insert('t', t);
+            Point2D::new([expr[0].evaluate(&bindings), expr[1].evaluate(&bindings)])
+        },
+    })
+}
+
+fn construct_equation_sigma_tau<'a>(string: [&str; 2]) -> Result<Equation<'a, (f64, f64)>, ()> {
+    /// Convert a string into an expression, which can then be evaluated to create an equation.
+    fn parse_equation(string: &str) -> Result<parser::Expr, ()> {
+        if let Ok(lexemes) = Lexer::scan(string.chars()) {
+            let tokens = Lexer::evaluate(lexemes.into_iter()).collect();
+            let mut parser = Parser::new(tokens);
+            parser.parse()
+        } else {
+            Err(())
+        }
+    }
+
+    let expr = [parse_equation(string[0])?, parse_equation(string[1])?];
+    Ok(Equation {
+        function: box move |(s, t)| {
+            let mut bindings = HashMap::new();
+            bindings.insert('s', s);
             bindings.insert('t', t);
             Point2D::new([expr[0].evaluate(&bindings), expr[1].evaluate(&bindings)])
         },
@@ -82,10 +105,9 @@ pub extern fn render_reflection(
         view: View,
         mirror: [&'a str; 2],
         figure: [&'a str; 2],
+        sigma_tau: [&'a str; 2],
         method: &'a str,
         threshold: f64,
-        scale: f64,
-        translate: f64,
     }
 
     /// The struct `RenderReflectionData` mirrors the JavaScript class `RenderReflectionData` and should
@@ -95,17 +117,19 @@ pub extern fn render_reflection(
         mirror: Vec<Point2D>,
         figure: Vec<Point2D>,
         reflection: Vec<Point2D>,
+        field: Option<Vec<(Point2D, Point2D)>>,
     }
 
     // An empty string represents an error to the JavaScript client.
     let error_output = String::new();
 
     if let Ok(data) = serde_json::from_str::<RenderReflectionArgs>(&json) {
-        let (figure, mirror) = match (
+        let (figure, mirror, sigma_tau) = match (
             construct_equation(data.figure),
             construct_equation(data.mirror),
+            construct_equation_sigma_tau(data.sigma_tau),
         ) {
-            (Ok(figure), Ok(mirror)) => (figure, mirror),
+            (Ok(figure), Ok(mirror), Ok(sigma_tau)) => (figure, mirror, sigma_tau),
             _ => return error_output,
         };
 
@@ -113,7 +137,7 @@ pub extern fn render_reflection(
         // be more flexible.
         let interval = Interval { start: -256.0, end: 256.0, step: 1.0 };
 
-        let reflection = match data.method.as_ref() {
+        let (reflection, field) = match data.method.as_ref() {
             "rasterisation" => {
                 let approximator = RasterisationApproximator {
                     cell_size: (data.threshold as u16).max(1),
@@ -121,10 +145,9 @@ pub extern fn render_reflection(
                 approximator.approximate_reflection(
                     &mirror,
                     &figure,
+                    &sigma_tau,
                     &interval,
                     &data.view,
-                    data.scale,
-                    data.translate,
                 )
             }
             "linear" => {
@@ -132,10 +155,9 @@ pub extern fn render_reflection(
                 approximator.approximate_reflection(
                     &mirror,
                     &figure,
+                    &sigma_tau,
                     &interval,
                     &data.view,
-                    data.scale,
-                    data.translate,
                 )
             }
             "quadratic" => {
@@ -143,10 +165,9 @@ pub extern fn render_reflection(
                 approximator.approximate_reflection(
                     &mirror,
                     &figure,
+                    &sigma_tau,
                     &interval,
                     &data.view,
-                    data.scale,
-                    data.translate,
                 )
             }
             _ => panic!("unknown rendering method"),
@@ -156,6 +177,7 @@ pub extern fn render_reflection(
             mirror: mirror.sample(&interval),
             figure: figure.sample(&interval),
             reflection,
+            field,
         }).to_string()
     } else {
         error_output
