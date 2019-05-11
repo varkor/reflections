@@ -11,9 +11,7 @@ You'll need:
 - The [Rust](https://www.rust-lang.org/) compiler.
 - [`wasm-bindgen`](https://github.com/rustwasm/wasm-bindgen).
 - [Python 3](https://www.python.org/download/releases/3.0/).
+- A version of make that supports `.ONESHELL` (e.g. GNU Make 3.83).
 
-To run:
-- Compile the Rust library: `cargo +nightly build --target wasm32-unknown-unknown --release`.
-- Generate the WASM bindings: `wasm-bindgen reflections.wasm --out-dir . --no-typescript --browser --no-modules`.
-- Start the web server: `python3 src/webserver.py`.
-- Open the Reflection Lab in a web browser (`reflections/src/main.html`).
+To build: `make`.
+To run: `make run` (and open the given file in a web browser).
