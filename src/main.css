@@ -46,12 +46,18 @@ input[type="text"] {
 
 	background: hsl(0, 0%, 14%);
 	border-radius: 4px;
-	border: hsl(0, 0%, 50%) 2px solid;
+	border: hsl(0, 0%, 60%) 2px solid;
 	outline: none;
 
 	color: hsl(0, 0%, 90%);
 	font-size: 12pt;
 	text-align: center;
+}
+
+input[type="text"]:focus {
+	background: hsl(0, 0%, 60%);
+
+	color: hsl(0, 0%, 14%);
 }
 
 input[type="text"].figure {

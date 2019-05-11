@@ -42,7 +42,10 @@ macro_rules! console_log {
 }
 
 /// Construct a parametric equation given the strings corresponding to `x(t)` and `y(t)`.
-fn construct_equation<'a>(string: [&str; 2]) -> Result<Equation<'a>, ()> {
+fn construct_equation<'a, I>(
+    string: [&str; 2],
+    set_bindings: impl 'a + Fn(&mut HashMap<char, f64>, I),
+) -> Result<Equation<'a, I>, ()> {
     /// Convert a string into an expression, which can then be evaluated to create an equation.
     fn parse_equation(string: &str) -> Result<parser::Expr, ()> {
         if let Ok(lexemes) = Lexer::scan(string.chars()) {
@@ -56,9 +59,9 @@ fn construct_equation<'a>(string: [&str; 2]) -> Result<Equation<'a>, ()> {
 
     let expr = [parse_equation(string[0])?, parse_equation(string[1])?];
     Ok(Equation {
-        function: box move |t| {
+        function: box move |p| {
             let mut bindings = HashMap::new();
-            bindings.insert('t', t);
+            set_bindings(&mut bindings, p);
             Point2D::new([expr[0].evaluate(&bindings), expr[1].evaluate(&bindings)])
         },
     })
@@ -75,21 +78,20 @@ pub extern fn initialise() {
 pub extern fn render_reflection(
     json: String,
 ) -> String {
-    /// The struct `RenderReflectionArgs` mirrors the JavaScript class `RenderReflectionArgs` and should
-    /// be kept in sync.
+    /// The struct `RenderReflectionArgs` mirrors the JavaScript class `RenderReflectionArgs` and
+    /// should be kept in sync.
     #[derive(Deserialize)]
     struct RenderReflectionArgs<'a> {
         view: View,
         mirror: [&'a str; 2],
         figure: [&'a str; 2],
+        sigma_tau: [&'a str; 2],
         method: &'a str,
         threshold: f64,
-        scale: f64,
-        translate: f64,
     }
 
-    /// The struct `RenderReflectionData` mirrors the JavaScript class `RenderReflectionData` and should
-    /// be kept in sync.
+    /// The struct `RenderReflectionData` mirrors the JavaScript class `RenderReflectionData` and
+    /// should be kept in sync.
     #[derive(Serialize)]
     struct RenderReflectionData {
         mirror: Vec<Point2D>,
@@ -101,11 +103,15 @@ pub extern fn render_reflection(
     let error_output = String::new();
 
     if let Ok(data) = serde_json::from_str::<RenderReflectionArgs>(&json) {
-        let (figure, mirror) = match (
-            construct_equation(data.figure),
-            construct_equation(data.mirror),
+        let (figure, mirror, sigma_tau) = match (
+            construct_equation(data.figure, |bindings, t| { bindings.insert('t', t); }),
+            construct_equation(data.mirror, |bindings, t| { bindings.insert('t', t); }),
+            construct_equation(data.sigma_tau, |bindings, (s, t)| {
+                bindings.insert('s', s);
+                bindings.insert('t', t);
+            }),
         ) {
-            (Ok(figure), Ok(mirror)) => (figure, mirror),
+            (Ok(figure), Ok(mirror), Ok(sigma_tau)) => (figure, mirror, sigma_tau),
             _ => return error_output,
         };
 
@@ -121,10 +127,9 @@ pub extern fn render_reflection(
                 approximator.approximate_reflection(
                     &mirror,
                     &figure,
+                    &sigma_tau,
                     &interval,
                     &data.view,
-                    data.scale,
-                    data.translate,
                 )
             }
             "linear" => {
@@ -132,10 +137,9 @@ pub extern fn render_reflection(
                 approximator.approximate_reflection(
                     &mirror,
                     &figure,
+                    &sigma_tau,
                     &interval,
                     &data.view,
-                    data.scale,
-                    data.translate,
                 )
             }
             "quadratic" => {
@@ -143,10 +147,9 @@ pub extern fn render_reflection(
                 approximator.approximate_reflection(
                     &mirror,
                     &figure,
+                    &sigma_tau,
                     &interval,
                     &data.view,
-                    data.scale,
-                    data.translate,
                 )
             }
             _ => panic!("unknown rendering method"),

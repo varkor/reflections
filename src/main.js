@@ -7,20 +7,20 @@ performance.mark(PERFORMANCE_MARKERS.START_MARKER);
 document.addEventListener("DOMContentLoaded", () => {
     // For now, the input equations are stored in the location hash. At the very least, it makes
     // certain reflections easy to share.
-    let saved_settings;
+    // Default settings.
+    let saved_settings = {
+        mirror: ["t", "(t / 10) ^ 2"],
+        figure: ["t", "x"],
+        sigma_tau: ["-s", "t"],
+        bindings: [["x", "0"]],
+    };
     try {
-        saved_settings = JSON.parse(decodeURIComponent(location.hash.slice(1)));
-    } catch (err) {
-        // Default settings.
-        saved_settings = {
-            mirror: ["t", "(t / 10) ^ 2"],
-            figure: ["t", "x"],
-            bindings: [["x", "0"]],
-        };
-    }
+        Object.assign(saved_settings, JSON.parse(decodeURIComponent(location.hash.slice(1))));
+    } catch {}
     let {
         mirror: mirror_equation,
         figure: figure_equation,
+        sigma_tau: sigma_tau_equation,
         bindings,
     } = saved_settings;
     let reflection = null;
@@ -29,8 +29,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const settings = new Map([
         ["threshold", "4"],
         ["method", "quadratic"],
-        ["draw_normals", false],
         ["t_offset", "0"],
+        ["s_offset", "0"],
     ]);
 
     const body = new Element(document.body);
@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const canvas = new Graph(WIDTH, HEIGHT).append_to(main);
     // We need to make use of the bounding rect of the canvas, but it's not available until the
     // rendering frame after the canvas has been created.
-    let canvas_offset = null;
+    let canvas_offset = canvas.element.getBoundingClientRect();
     // The position of the cursor and where a mouse/touch drag started (if a drag is in progress).
     let [pointer, drag_origin] = [null, null];
     // The view represents the visible region on the canvas.
@@ -134,7 +134,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             if (reflection !== null) {
-                reflection.plot(canvas, view, pointer).then(() => {
+                reflection.plot(canvas, view, settings, pointer).then(() => {
                     if (start) {
                         // The first time we draw the reflection, we have some extra metrics to take
                         // into account when measuring the performance.
@@ -175,15 +175,17 @@ document.addEventListener("DOMContentLoaded", () => {
         view = view_adjusted;
 
         if (recompute) {
-            // As a debugging aid, it's useful to offset the starting parameter for `t`, so we allow
-            // it to be scaled between [0, 1).
-            const t_offset = settings.get("t_offset");
+            // As a debugging aid, it's useful to offset the starting parameter for `t` and `s`, so
+            // we allow them to be scaled in the range [0, 1).
+            const [t_offset, s_offset] = [settings.get("t_offset"), settings.get("s_offset")];
             const bindings_new = new Map(bindings);
             bindings_new.set("t", `t - ${t_offset}`);
+            bindings_new.set("s", `s - ${s_offset}`);
             const present_vars = extract_variables();
             location.hash = encodeURIComponent(JSON.stringify({
                 mirror: mirror_equation,
                 figure: figure_equation,
+                sigma_tau: sigma_tau_equation,
                 bindings: Array.from(bindings).filter(binding => present_vars.has(binding[0])),
             }));
 
@@ -194,11 +196,12 @@ document.addEventListener("DOMContentLoaded", () => {
             reflection = new NonaffineReflection(
                 mirror_equation,
                 figure_equation,
+                sigma_tau_equation,
                 bindings_new,
                 view,
                 settings,
             );
-            reflection.points.then(() => {
+            reflection.data.then(() => {
                 window.requestAnimationFrame(() => draw_equations(start, true));
             });
         } else {
@@ -233,25 +236,32 @@ document.addEventListener("DOMContentLoaded", () => {
                 settings.set("t_offset", self.value);
                 render(true);
             })),
+        // `s` offset.
+        new Div()
+            .append(new Label("s offset:"))
+            .append(new RangeSlider(0.0, 0, 1.0, 0.01).listen("input", (_, self) => {
+                settings.set("s_offset", self.value);
+                render(true);
+            })),
     );
 
     const figure = new ParametricEquationInput(() => {
         figure_equation = figure.components.map(({ value }) => value);
         extract_variables();
         render(true);
-    }, ["figure"])
+    }, ["x", "y"], ["figure"])
         .append_to(equation_container)
         .for_which(self => {
             self.components[0].id = "figure-equation";
             [self.components[0].value, self.components[1].value] = figure_equation;
         });
-    new Label("Scale the figure", figure.components[0]).precede(figure);
+    new Label("Transform the figure", figure.components[0]).precede(figure);
 
     const mirror = new ParametricEquationInput(() => {
         mirror_equation = mirror.components.map(({ value }) => value);
         extract_variables();
         render(true);
-    }, ["mirror"])
+    }, ["x", "y"], ["mirror"])
         .append_to(equation_container)
         .for_which(self => {
             self.components[0].id = "mirror-equation";
@@ -260,9 +270,19 @@ document.addEventListener("DOMContentLoaded", () => {
     new Label(" in the mirror", mirror.components[0]).precede(mirror);
 
     equation_container.add_text(
-        ` by ${SPECIAL_VARIABLES.get("scaling")}, and translate by \
-         ${SPECIAL_VARIABLES.get("translation")}, where:`
+        ` where ${SPECIAL_VARIABLES.get("transformation")} = `
     );
+
+    const sigma_tau = new ParametricEquationInput(() => {
+        sigma_tau_equation = sigma_tau.components.map(({ value }) => value);
+        extract_variables();
+        render(true);
+    }, [SPECIAL_VARIABLES.get("scaling"), SPECIAL_VARIABLES.get("translation")], ["sigma-tau"])
+        .append_to(equation_container)
+        .for_which(self => {
+            self.components[0].id = "sigma-tau-equation";
+            [self.components[0].value, self.components[1].value] = sigma_tau_equation;
+        });
 
     const var_container = new Div(["variables"]).append_to(new Div().append_to(equation_container));
     // We store the variable bindings, both for those variables that are currently free in an
@@ -304,13 +324,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // The free variables currently in the equation inputs.
         const vars = new Set(
-            [...figure.components, ...mirror.components]
+            [...figure.components, ...mirror.components, ...sigma_tau.components]
                 .map(eq => [...new Equation(eq.value).variables()])
                 .flat()
         );
         vars.delete("t"); // `t` is a special parameter.
-        vars.add(SPECIAL_VARIABLES.get("scaling"));
-        vars.add(SPECIAL_VARIABLES.get("translation"));
+        vars.delete("s"); // `s` is a special parameter.
 
         // The combination of free variables and previously-set variables.
         const all_vars = Array.from(new Set([...var_map.keys(), ...vars]));
