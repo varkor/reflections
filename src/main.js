@@ -35,6 +35,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const body = new Element(document.body);
     const main = new Element("main");
+    // There are two modes:
+    // - Main:      the full Reflection Lab, in which the user has full control over the settings,
+    //              such as equation input, variable sliders, etc.
+    // - Embedded:  intended to be embedded into another webpage using an <iframe>. Here, the canvas
+    //              is still interactive, and variables may be changed using sliders, but all other
+    //              UI is hidden.
+    const embedded = window.location.pathname.split("/").pop() === "embed.html";
 
     const [WIDTH, HEIGHT] = [640, 480];
     // The canvas on which the equations are drawn.
@@ -210,7 +217,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Now we construct all the UI elements.
-    const equation_container = new Div(["options"]).append_to(body);
+    const equation_container = new Div(["options"])
+        .append_to(embedded ? new Div() : body);
 
     new Div(["dev-options"]).append_to(equation_container).append(
         // Rendering method.
@@ -284,7 +292,11 @@ document.addEventListener("DOMContentLoaded", () => {
             [self.components[0].value, self.components[1].value] = sigma_tau_equation;
         });
 
-    const var_container = new Div(["variables"]).append_to(new Div().append_to(equation_container));
+    const var_container = new Div(["variables"]).append_to(new Div(
+        embedded ? ["overlay"] : []
+    ).append_to(
+        embedded ? body : equation_container
+    ));
     // We store the variable bindings, both for those variables that are currently free in an
     // equation and those that have previously been (so that variables have persistent values
     // even when being deleted temporarily).
