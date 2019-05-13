@@ -278,11 +278,11 @@ const PERFORMANCE_MARKERS = {
 
 /// Responsible for settings up the connection with Rust via `wasm-bindgen`.
 class RustWASMContext {
-    static connect() {
+    static connect(log_index) {
         const SERVER = "http://0.0.0.0:8000/";
         const PATH = "target/wasm32-unknown-unknown/release/reflections_bg.wasm";
         return window.wasm_bindgen(`${SERVER}${PATH}`).then(() => {
-            performance.mark(PERFORMANCE_MARKERS.WASM_BINDGEN_CONNECT);
+            PerformanceLogger.mark(log_index, PERFORMANCE_MARKERS.WASM_BINDGEN_CONNECT);
             window.wasm_bindgen.initialise();
         });
     }
@@ -301,7 +301,7 @@ const SPECIAL_VARIABLES = new Map([
 /// Rust; this is a wrapper over the top of the WASM bindings.
 class NonaffineReflection {
     /// Compute a reflection (through Rust WASM).
-    constructor(mirror, figure, sigma_tau, bindings, view, settings) {
+    constructor(mirror, figure, sigma_tau, bindings, view, settings, log_index) {
         /// The class `RenderReflectionArgs` mirrors the Rust struct `RenderReflectionArgs` and
         /// should be kept in sync.
         class RenderReflectionArgs {
@@ -328,6 +328,7 @@ class NonaffineReflection {
         mirror = mirror.map(eq => new Equation(eq).substitute(bindings));
         figure = figure.map(eq => new Equation(eq).substitute(bindings));
         sigma_tau = sigma_tau.map(eq => new Equation(eq).substitute(bindings));
+        this.log_index = log_index;
         this.data = new Promise((resolve, reject) => {
             const json = window.wasm_bindgen.render_reflection(JSON.stringify(
                 new RenderReflectionArgs(
@@ -339,10 +340,10 @@ class NonaffineReflection {
                     parseInt(settings.get("threshold")),
                 ),
             ));
-            performance.mark(PERFORMANCE_MARKERS.WASM_BINDGEN_CALL);
+            PerformanceLogger.mark(this.log_index, PERFORMANCE_MARKERS.WASM_BINDGEN_CALL);
             try {
                 const data = new RenderReflectionData(JSON.parse(json));
-                performance.mark(PERFORMANCE_MARKERS.WASM_BINDGEN_PARSE);
+                PerformanceLogger.mark(this.log_index, PERFORMANCE_MARKERS.WASM_BINDGEN_PARSE);
                 resolve(data);
             } catch (err) {
                 reject(new Error("Failed to parse Rust data."));
@@ -364,7 +365,7 @@ class NonaffineReflection {
         canvas.context.fillStyle = canvas.context.strokeStyle
             = get_CSS_var("--reflection-colour");
         canvas.plot_points(view, data.reflection);
-        performance.mark(PERFORMANCE_MARKERS.CANVAS_RENDER);
+        PerformanceLogger.mark(this.log_index, PERFORMANCE_MARKERS.CANVAS_RENDER);
     }
 }
 
@@ -397,21 +398,37 @@ class Equation {
 
 /// Debugging tool for measuring performance.
 class PerformanceLogger {
-    static log(...marks) {
+    static start() {
+        const index = PerformanceLogger.index++;
+        PerformanceLogger.mark(index, PERFORMANCE_MARKERS.START_MARKER);
+        return index;
+    }
+
+    static mark(index, marker) {
+        performance.mark(`${marker}-${index}`);
+    }
+
+    static log(index, ...marks) {
         const next_mark = () => {
             const next = marks.shift();
             if (next === undefined) {
                 return null;
             }
-            if (performance.getEntriesByName(next).length === 0) {
+            const next_index = `${next}-${index}`;
+            if (performance.getEntriesByName(next_index).length === 0) {
                 console.warn(`No performance entry named \`${next}\` exists.`);
                 return null;
             }
-            return next;
+            return next_index;
         }
 
-        for (let start = next_mark(), end; end = next_mark(); start = end) {
+        let start = next_mark();
+        for (let end; end = next_mark(); start = end) {
             performance.measure(end, start, end);
+            performance.clearMarks(start);
+        }
+        if (start !== null) {
+            performance.clearMarks(start);
         }
 
         const round = duration => {
@@ -419,14 +436,20 @@ class PerformanceLogger {
             const rounding_factor = 10 ** DECIMAL_PLACES;
             return Math.round(duration * rounding_factor) / rounding_factor;
         };
-        performance.getEntriesByType("measure").map(entry => {
-            console.log(entry.name, round(entry.duration), `(${round(1000 / entry.duration)} fps)`);
-        });
+        const duration = performance.getEntriesByType("measure").reduce((duration, entry) => {
+            console.log(
+                entry.name.replace(/-\d+$/, ""),
+                round(entry.duration),
+                `(${round(1000 / entry.duration)} fps)`,
+            );
+            return duration + entry.duration;
+        }, 0);
+        console.log(`(${round(1000 / duration)} fps)`);
 
         performance.clearMeasures();
-        performance.clearMarks();
     }
 }
+PerformanceLogger.index = 0;
 
 /// A persistent position of a pointer, such as a cursor or touch.
 class Pointer {

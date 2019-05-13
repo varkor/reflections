@@ -1,6 +1,6 @@
 "use strict";
 
-performance.mark(PERFORMANCE_MARKERS.START_MARKER);
+let log_index = PerformanceLogger.start();
 
 // The whole project is a `<canvas>`-based experiment, so we can't really do anything interesting
 // until the DOM has loaded.
@@ -115,9 +115,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     window.addEventListener("mouseleave", () => pointer = null);
 
-    performance.mark(PERFORMANCE_MARKERS.DOM_CONTENT_LOAD);
+    PerformanceLogger.mark(log_index, PERFORMANCE_MARKERS.DOM_CONTENT_LOAD);
     // To start rendering reflections, we need to connect to the WASM context.
-    RustWASMContext.connect().then(() => {
+    RustWASMContext.connect(log_index).then(() => {
         canvas_offset = canvas.element.getBoundingClientRect();
 
         render(true, true);
@@ -128,7 +128,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function render(recompute, start = false) {
         /// `draw_equations` assumes we have already computed the reflection and simply need to
         /// redraw it, on account of the view changing.
-        function draw_equations(start, recomputed = false) {
+        function draw_equations(reflection, start, recomputed = false) {
             canvas.clear();
 
             /// Currently, the option to draw normals is disabled, but it's handy to have for debugging.
@@ -146,6 +146,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         // The first time we draw the reflection, we have some extra metrics to take
                         // into account when measuring the performance.
                         PerformanceLogger.log(
+                            reflection.log_index,
                             PERFORMANCE_MARKERS.START_MARKER,
                             PERFORMANCE_MARKERS.DOM_CONTENT_LOAD,
                             PERFORMANCE_MARKERS.WASM_BINDGEN_CALL,
@@ -155,6 +156,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         console.log("");
                     } else if (recomputed) {
                         PerformanceLogger.log(
+                            reflection.log_index,
                             PERFORMANCE_MARKERS.START_MARKER,
                             PERFORMANCE_MARKERS.WASM_BINDGEN_CALL,
                             PERFORMANCE_MARKERS.WASM_BINDGEN_PARSE,
@@ -197,22 +199,26 @@ document.addEventListener("DOMContentLoaded", () => {
             }));
 
             if (!start) {
-                performance.mark(PERFORMANCE_MARKERS.START_MARKER);
+                log_index = PerformanceLogger.start();
             }
 
-            reflection = new NonaffineReflection(
+            const r = new NonaffineReflection(
                 mirror_equation,
                 figure_equation,
                 sigma_tau_equation,
                 bindings_new,
                 view,
                 settings,
+                log_index,
             );
-            reflection.data.then(() => {
-                window.requestAnimationFrame(() => draw_equations(start, true));
+            r.data.then(() => {
+                window.requestAnimationFrame(() => draw_equations(r, start, true));
             });
+            // We store the latest reflection so that we have a reference to the
+            // reflection data when we want to redraw it (when panning or zooming).
+            reflection = r;
         } else {
-            window.requestAnimationFrame(() => draw_equations(start));
+            window.requestAnimationFrame(() => draw_equations(reflection, start));
         }
     }
 
