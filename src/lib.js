@@ -232,6 +232,15 @@ class Graph extends Canvas {
         this.context.transform(1, 0, 0, -1, 0, this.element.height);
     }
 
+    /// Adjust a point to be positioned correctly with respect to the view.
+    static adjust_point(view, [px, py]) {
+        const scale = 2 ** view.scale;
+        return [
+            (px - view.origin[0]) * scale + view.width / 2,
+            (py - view.origin[1]) * scale + view.height / 2,
+        ];
+    }
+
     plot_points(view, points, connect = false) {
         const dpr = window.devicePixelRatio;
         const RADIUS = 2;
@@ -321,7 +330,10 @@ class NonaffineReflection {
             constructor(data) {
                 this.mirror = data.mirror;
                 this.figure = data.figure;
-                this.reflection = data.reflection;
+                // `points` contains the entire reflection, including figure and mirror data,
+                // whereas `reflection` extracts solely the image points for convenience.
+                this.points = data.reflection;
+                this.reflection = data.reflection.map(([r,,]) => r);
             }
         }
 
@@ -352,7 +364,7 @@ class NonaffineReflection {
     }
 
     /// Plot the mirror, figure and reflection.
-    async plot(canvas, view, _settings, _pointer) {
+    async plot(canvas, view, _settings) {
         function get_CSS_var(name) {
             return window.getComputedStyle(document.documentElement).getPropertyValue(name);
         }

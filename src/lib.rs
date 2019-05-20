@@ -96,7 +96,7 @@ pub extern fn render_reflection(
     struct RenderReflectionData {
         mirror: Vec<Point2D>,
         figure: Vec<Point2D>,
-        reflection: Vec<Point2D>,
+        reflection: Vec<(Point2D, Point2D, Point2D)>,
     }
 
     // An empty string represents an error to the JavaScript client.

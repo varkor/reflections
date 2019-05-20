@@ -46,6 +46,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const [WIDTH, HEIGHT] = [640, 480];
     // The canvas on which the equations are drawn.
     const canvas = new Graph(WIDTH, HEIGHT).append_to(main);
+    // A hidden canvas to store the canvas before making temporary changes (e.g. hover effects).
+    const buffer = new Graph(WIDTH, HEIGHT);
     // We need to make use of the bounding rect of the canvas, but it's not available until the
     // rendering frame after the canvas has been created.
     let canvas_offset = canvas.element.getBoundingClientRect();
@@ -100,6 +102,91 @@ document.addEventListener("DOMContentLoaded", () => {
             drag_origin = prev_pointer;
             if (request) {
                 render(false);
+            } else {
+                // We're going to highlight the points closest to the pointer and their
+                // corresponding pair (i.e. figure, mirror, image). The user can hover over
+                // any of the three. However, in general, the user will be intending to hover
+                // over a particular curve. It's unhelpful if we highlight any points close to
+                // the pointer, as they could be unrelated. Therefore, we try to work out which
+                // of the three curves the user is hovering over and then highlight any points
+                // on *that* curve that are close to the pointer (even if there are points on the
+                // other curves that are actually closer). The curve with the point that is
+                // closest to the pointer is the one we choose.
+                if (reflection !== null) {
+                    // Clear the previous hover effect.
+                    canvas.context.drawImage(buffer.element, 0, 0);
+
+                    reflection.data.then((data) => {
+                        class ProximalPoints {
+                            constructor() {
+                                this.points = [];
+                                this.distance = Infinity;
+                            }
+
+                            add_point(pointer, [x, y], value) {
+                                // The maximum distance from the pointer in pixels to add a point.
+                                const THRESHOLD = 8;
+
+                                const distance =
+                                    Math.hypot(x - pointer.x, y - (canvas.height - pointer.y));
+                                if (distance <= THRESHOLD) {
+                                    this.points.push(value);
+                                    this.distance = Math.min(this.distance, distance);
+                                }
+                            }
+                        }
+
+                        const reflection_prox = new ProximalPoints();
+                        const figure_prox = new ProximalPoints();
+                        const mirror_prox = new ProximalPoints();
+                        const prox = [reflection_prox, figure_prox, mirror_prox];
+
+                        const points = data.points.map((triple) => {
+                            return triple.map(p => Graph.adjust_point(view, p));
+                        });
+
+                        for (const point of points) {
+                            const [r, f, m] = point;
+                            reflection_prox.add_point(pointer, r, point);
+                            figure_prox.add_point(pointer, f, point);
+                            mirror_prox.add_point(pointer, m, point);
+                        }
+
+                        const closest = prox.reduce((prev, cur) => {
+                            return prev.distance <= cur.distance ? prev : cur;
+                        });
+
+                        if (closest.distance < Infinity) {
+                            const dpr = window.devicePixelRatio;
+                            const RADIUS = 6;
+
+                            const lines = new Path2D();
+                            const points = new Path2D();
+
+                            for (let [r, f, m] of closest.points) {
+                                lines.moveTo(f[0] * dpr, f[1] * dpr);
+                                lines.lineTo(r[0] * dpr, r[1] * dpr);
+
+                                [r, f, m].forEach((p) => {
+                                    points.moveTo(p[0] * dpr, p[1] * dpr);
+                                    points.arc(
+                                        p[0] * dpr,
+                                        p[1] * dpr,
+                                        RADIUS / 2 * dpr,
+                                        0,
+                                        2 * Math.PI,
+                                    );
+                                });
+                            }
+
+                            canvas.context.strokeStyle = "black";
+                            canvas.context.stroke(lines);
+
+                            canvas.context.fillStyle = "black";
+                            canvas.context.fill(points);
+                        }
+                    });
+                }
             }
         }
     });
@@ -131,17 +218,11 @@ document.addEventListener("DOMContentLoaded", () => {
         function draw_equations(reflection, start, recomputed = false) {
             canvas.clear();
 
-            /// Currently, the option to draw normals is disabled, but it's handy to have for debugging.
-            function plot_normals(normals) {
-                for (const entry of normals.entries()) {
-                    const [i, normal] = entry;
-                    canvas.context.fillStyle = canvas.context.strokeStyle = `hsl(${i}, 50%, 50%)`;
-                    canvas.plot_points(view, normal);
-                }
-            }
-
             if (reflection !== null) {
-                reflection.plot(canvas, view, settings, pointer).then(() => {
+                reflection.plot(canvas, view, settings).then(() => {
+                    // Save the reflection image in the buffer, so that we can draw on it without
+                    // overwriting anything permanently.
+                    buffer.context.drawImage(canvas.element, 0, 0);
                     if (start) {
                         // The first time we draw the reflection, we have some extra metrics to take
                         // into account when measuring the performance.
