@@ -1,3 +1,4 @@
+#![feature(bind_by_move_pattern_guards)]
 #![feature(box_syntax)]
 #![feature(euclidean_division)]
 #![feature(try_trait)]

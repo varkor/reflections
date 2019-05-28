@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::f64;
 use std::fmt;
 use std::mem;
 use std::str::FromStr;
@@ -90,7 +91,11 @@ impl Token {
             }
 
             // Textual tokens (e.g. variables and functions).
-            (Name(_), s) => s.chars().all(|c| c.is_ascii_alphabetic() && c.is_ascii_lowercase()),
+            (Name(_), s) => {
+                s.chars().all(|c| {
+                    c.is_ascii_alphabetic() && c.is_ascii_lowercase() || c == 'π' || c == 'τ'
+                })
+            }
 
             _ => false,
         }
@@ -507,7 +512,7 @@ impl<I: Iterator<Item = Token> + Clone> Parser<I> {
     /// Parse a variable: a single alphabetic character.
     fn parse_var(&mut self) -> ParseResult<Expr> {
         let n = match self.token {
-            Token::Name(ref n) if n.len() == 1 => {
+            Token::Name(ref n) if n.chars().next().map_or(false, |c| c.is_ascii_alphabetic()) => {
                 n.clone()
             }
             _ => return Self::err(),
@@ -518,13 +523,19 @@ impl<I: Iterator<Item = Token> + Clone> Parser<I> {
 
     /// Parse a numeric value (integral or floating-point).
     fn parse_value(&mut self) -> ParseResult<Expr> {
-        match self.token {
-            Token::Number(v) => {
-                self.bump();
-                Ok(Expr::Number(v))
+        let v = match self.token {
+            Token::Number(v) => v,
+            Token::Name(ref n) => {
+                match n.as_str() {
+                    "π" => f64::consts::PI,
+                    "τ" => f64::consts::PI * 2.0,
+                    _ => return Self::err(),
+                }
             }
-            _ => Self::err(),
-        }
+            _ => return Self::err(),
+        };
+        self.bump();
+        Ok(Expr::Number(v))
     }
 }
 
