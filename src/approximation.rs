@@ -95,7 +95,7 @@ impl<'a> Equation<'a, f64> {
     /// Return a new equation representing the normal at the given `t`.
     pub fn normal(&self, t: f64) -> Equation<'_, f64> {
         let [mx, my] = (self.function)(t).into_inner();
-        let [dx, dy] = self.derivative(t).into_inner();
+        let [dx, dy] = self.derivative(t).normalise().into_inner();
 
         Equation {
             function: box move |s| {
