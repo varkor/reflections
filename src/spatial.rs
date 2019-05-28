@@ -48,6 +48,13 @@ impl Pair<f64> {
     }
 }
 
+impl Pair<f64> {
+    pub fn normalise(&self) -> Pair<f64> {
+        let m = self.length_2().sqrt();
+        Pair([self.0[0] / m, self.0[1] / m])
+    }
+}
+
 impl<T: Copy + Debug + PartialOrd + Signed + Bounded> Point for Pair<T> {
     type Scalar = T;
     const DIMENSIONS: usize = 2;
