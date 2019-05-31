@@ -40,12 +40,6 @@ impl<T: Copy> Pair<T> {
     }
 }
 
-impl<T: Copy + Mul<Output = T> + Add<Output = T>> Pair<T> {
-    pub fn length_2(&self) -> T {
-        self.0[0] * self.0[0] + self.0[1] * self.0[1]
-    }
-}
-
 impl Pair<f64> {
     pub fn normalise(&self) -> Pair<f64> {
         let length_2 = self.0[0] * self.0[0] + self.0[1] * self.0[1];

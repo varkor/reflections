@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use rstar::{AABB, primitives::Line, PointDistance, RTree};
+use rstar::{primitives::Line, PointDistance, RTree};
 
 use crate::approximation::{Equation, Interval, View};
 use crate::spatial::{Pair, Point2D, Quad, RTreeObjectWithData};
@@ -179,8 +179,8 @@ impl ReflectionApproximator for QuadraticApproximator {
                 points.into_iter().map(|point| {
                     // Interpolate the possible reflections corresponding to the quad vertices in
                     // comparison to the point.
-                    let len_a = (quad.edges[0].to - quad.edges[0].from).length_2();
-                    let len_b = (quad.edges[2].to - quad.edges[2].from).length_2();
+                    let len_a = quad.edges[0].length_2();
+                    let len_b = quad.edges[2].length_2();
                     let proj = Pair::new([
                         projection_on_edge(&quad.edges[0], point) / len_a,
                         1.0 - projection_on_edge(&quad.edges[2], point) / len_b,
@@ -260,10 +260,7 @@ impl ReflectionApproximator for LinearApproximator {
         // Sample points along the figure, finding the closest line segment along the mirror and
         // interpolating the reflection image.
         for point in figure.sample(&interval) {
-            let offset = Point2D::diag(threshold);
-            rtree.locate_in_envelope_intersecting(
-                &AABB::from_corners(point - offset, point + offset)
-            ).for_each(|line| {
+            rtree.locate_within_distance(point, self.threshold).for_each(|line| {
                 if line.distance_2(&point) <= threshold {
                     reflection.entry((line.1).0).or_insert(vec![]).push(point);
                 }
@@ -278,7 +275,7 @@ impl ReflectionApproximator for LinearApproximator {
                     // Find the closest point on the line `fig` to the point `p` as a parameter from
                     // 0 to 1.
                     let s = projection_on_edge(&fig, point);
-                    let len = (fig.to - fig.from).length_2();
+                    let len = fig.length_2();
                     if s >= 0.0 && s <= len {
                         Some((base + (end - base) * Point2D::diag(s / len), zero, zero))
                     } else {
