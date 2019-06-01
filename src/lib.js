@@ -471,7 +471,7 @@ class Pointer {
 
     /// Set the (x, y) components of the pointer in response to an event (like a click or touch).
     update(event, offset) {
-        this.x = event.pageX - window.scrollX - offset.left;
-        this.y = event.pageY - window.scrollY - offset.top;
+        this.x = event.pageX - offset.left;
+        this.y = event.pageY - offset.top;
     }
 }
