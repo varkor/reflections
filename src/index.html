@@ -1,0 +1,436 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Reflections on reflections</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" media="screen" href="main.css">
+    <script src="lib.js"></script>
+    <script src="article.js"></script>
+</head>
+<body>
+    <article>
+        <h1>Reflections on reflections</h1>
+
+        <!-- maybe put an animating nonlinear reflection here? -->
+        <!-- maybe restrict panning/zooming? -->
+        <!-- maybe talk earlier about being able to play with your own reflections -->
+        <!-- make default for parameters not 255 -->
+        <!-- there's still a hover issue -->
+        <!-- investigating having an option to join dots -->
+        <!-- add an option to treat r=0 as r=epsilon -->
+        <!-- could draw curves instead of straight lines for rotations -->
+        <!-- make variable name fixed width -->
+
+        <section>
+            One of the beautiful things about mathematics is the way in which surprising and
+            fascinating complexity can arise from what seem to be the simplest and most natural
+            questions. Another is in its capacity to give us a language to describe behaviours and
+            phenomena in such a way as to reduce them to their very essence, allowing us to perceive
+            connections between things that previously seemed utterly distinct.
+            <br>
+            I'm going to share with you an example of both: a simple question that leads to
+            unexpectedly beautiful answers and connects concepts that, on the face of it, don't seem
+            very much related at all.
+            <br>
+            The best part is that, to appreciate it, you don't need to understand any mathematics at
+            all; I'm going to explain everything visually that you can interact with—everything here
+            can be understood by playing around with it—by experimenting.
+            <br>
+            I hope that I'll show you that you don't need to be asking difficult questions to get
+            interesting answers.
+
+            <h2>Mirror, mirror, on the wall...</h2>
+
+            We're all familiar with reflections in real life: we see them all around us.
+            <!-- add more -->
+            You've probably encountered reflections in mathematics too. The idea is very simple: we
+            have a line, called the <span class="mirror">mirror</span>, and some other shape
+            (typically called the <span class="figure">figure</span>), which we intend to reflect in
+            the mirror. The <span class="reflection">reflection</span> is the mirror image of the
+            figure, which is flipped across the mirror, at an equal distance but on the opposite
+            side.
+            <br>
+            Here, we have the <span class="reflection">reflection</span> of a
+            <span class="figure">parabola</span> in a <span class="mirror">horizontal line</span>.
+            You can play around with it: drag the slider to change the vertical position of the
+            parabola.
+
+            <!-- A parabola reflected in a horizontal line. -->
+            <canvas class="embed"
+                data-figure-x="t" data-figure-y="(t / 15) ^ 2 - y"
+                data-mirror-x="t" data-mirror-y="0"
+            ></canvas>
+
+            <aside>You can pan around by clicking and dragging, or zoom in and out by
+            holding <kbd>Shift</kbd> while scrolling.</aside>
+
+            Notice that if you hover over any of the lines with your cursor, you'll see matching
+            points highlighted on the other two lines. These points are the <i>corresponding
+            points</i>: that is, the highlighted points on the <span class="figure">figure</span>
+            are the ones reflected in the highlighted points on the
+            <span class="mirror">mirror</span> to produce the highlighted points on the
+            <span class="reflection">reflection</span>. This may seem obvious now, but it's going to
+            be helpful to see what's happening later.
+            <br>
+            A mathematical reflection is, for all intents and purposes, the same kind of thing as
+            a real-life reflection, just viewed from a different perspective. You can imagine a
+            mathematical reflection as what you'd see if you looked down at a mirror from above, and
+            could see both sides of the scene: the original image, and its reflection.
+            <br>
+            However, there's one obvious difference: in a mathematical reflection, there's nothing
+            stopping us from intersecting what's being reflected with the reflection itself. You'll
+            see if you drag the slider to the right, that the <span class="figure">parabola</span>
+            intersects the <span class="mirror">mirror</span> and there's no longer a real
+            distinction between one side of the mirror and the other.
+            <br>
+            We don't just have to talk about horizontal mirrors; we can just as well slant the
+            <span class="mirror">line</span> and reflect in a sloped surface.
+
+            <!-- A parabola reflected in a slanted line. -->
+            <canvas class="embed"
+                data-figure-x="t" data-figure-y="(t / 15) ^ 2 - y"
+                data-mirror-x="t" data-mirror-y="t"
+            ></canvas>
+
+            We can already see something interesting here: the orientation of the reflected
+            <span class="reflection">parabola</span> has changed. By reflecting in a
+            <span class="mirror">slanted line</span>, we no longer simply completely reverse the
+            shape: it's now rotated too. If you trace one of the lines with your cursor, you can see
+            why: the distance <span class="figure">figure</span>↔<span class="mirror">mirror</span>
+            is exactly the same as the distance <span class="reflection">reflection</span>↔
+            <span class="mirror">mirror</span>, it's just in the opposite direction. The shape of
+            the reflection, however, is unchanged.
+
+            <h2>Bending the rules</h2>
+
+            So far, nothing seems too unexpected. If you've seen mathematical reflections before,
+            this is all familiar. In fact, traditionally, this is their extent: once you've seen one
+            reflection, you've really seen them all. But what was all that earlier about asking
+            simple questions?
+            <br>
+            If you think to your experience with reflections in real life, you'll immediately spot
+            that things aren't quite so simple. There's something we see frequently in real life
+            that simply doesn't come up when mathematical reflections are mentioned: <i>curved
+            mirrors.</i> The canonical example has to be carnival mirrors: those strangely-shaped
+            mirrors that distort bemused passersby. But we see curved mirrors in many more
+            commonplace situations too: parabolic mirrors near sharp turns in roads, or the
+            curved windows on a subway train.
+            <br>
+            Thus, our question naturally poses itself: <b>What happens if we extend mathematical
+            reflections to curved mirrors?</b>
+            <br>
+            It turns out that this question has answers that are much more fascinating than you
+            might at first imagine.
+            <br>
+            Below, we have the same reflection as before. However, this time the slider doesn't
+            control the position of the <span class="figure">figure</span>. It instead changes how
+            curved the <span class="mirror">mirror</span> is.
+
+            <!-- Parabola reflected in parabola -->
+            <canvas class="embed"
+                data-figure-x="t" data-figure-y="(t / 15) ^ 2"
+                data-mirror-x="t" data-mirror-y="-(a / 250) * (t / 15) ^ 2"
+            ></canvas>
+
+            When the slider is dragged to the left, the reflection we get is unsurprising: relative
+            to each small section of the <span class="figure">figure</span>, the
+            <span class="mirror">mirror</span> looks effectively flat, so we get a
+            <span class="reflection">reflection</span> of a similar shape. Drag the slider to the
+            <i>right</i>, however, and a strange phenomenon emerges: the
+            <span class="reflection">reflection</span> converges to a loop!
+            <br>
+            It's slightly easier to see what's happening when we make the
+            <span class="figure">figure</span> completely straight: we've now reversed the roles of
+            figure and mirror and are reflecting a <span class="figure">straight line</span> in a
+            <span class="mirror">parabola</span>.
+
+            <!-- Straight line reflected in parabola -->
+            <canvas class="embed"
+                data-figure-x="t" data-figure-y="0"
+                data-mirror-x="t" data-mirror-y="(t / 10) ^ 2 - y"
+                data-sigma="-s" data-tau="t"
+            ></canvas>
+
+            At first, the result looks perplexing. However, if you trace the
+            <span class="mirror">mirror</span> with your cursor, you can see how the reflection is
+            formed. Points on the <span class="figure">figure</span> are always reflected through
+            perpendicular lines along the <span class="mirror">mirror</span>, and the
+            <span class="reflection">reflected points</span> are always at an equal distance from
+            the <span class="mirror">mirror</span> as the <span class="figure">points on the figure
+            </span>.
+
+            <!-- experiment with nonlinear reflections -->
+            <!-- mention "nonlinear reflections" -->
+
+            <h2>A different point of view</h2>
+
+            We've seen now that asking a simple question, and lifting an unnecessary restriction,
+            produces striking results. At the moment, though, what we've done is mostly interesting
+            from a visual perspective. That's not to say that pleasing pictures are insufficient
+            motivation for exploring these nonlinear reflections—they're a fulfilling reward in
+            their own right—but if we choose to continue asking questions, we can happen across
+            some unexpectedly fruitful connections.
+            <br>
+            In this case, one natural question to ask is: <b>Are point reflections related?</b>
+            <br>
+            Point reflections are a different sort of mathematical reflection. They don't have so
+            close a physical analogue as normal reflections, but they are clearly based on similar
+            ideas. In a point reflection, the mirror is a single point and every point on the figure
+            is flipped to its opposite side.
+
+            <!-- Leaf point reflection -->
+            <canvas class="embed"
+                data-figure-x="t + 5 * sin(t / 5) + 100" data-figure-y="(t / 10) ^ 2 + 40 * sin(t / 10) + 50"
+                data-mirror-x="0.001 * cos(((t + 255) / (255 * 2)) * τ)" data-mirror-y="0.001 * sin(((t + 255) / (255 * 2)) * τ)"
+                data-sigma="-s" data-tau="t"
+            ></canvas>
+
+            Take a look at this point reflection. Here, the <span class="figure">leaf</span> shape
+            is reflected through the <span class="mirror">point</span> to produce another
+            <span class="reflection">leaf</span>. Similarly to before, each pair of corresponding
+            points on the <span class="figure">figure</span> and
+            <span class="reflection">reflection</span> are equal distances from the
+            <span class="mirror">mirror</span>.
+            <br>
+            Traditionally, linear reflections and point reflections are two separate, albeit
+            similar, concepts. However, having added a layer of generality to our reflections, it
+            turns out that we are now in a position to unify the two.
+            <br>
+            Below, we have the same <span class="figure">figure</span>, but, instead of a point, we
+            are now reflecting in a <span class="mirror">circle</span>. The slider controls the
+            radius of the circle. Observe what happens when the radius gets close to zero.
+
+            <!-- Leaf circle reflection -->
+            <canvas class="embed"
+                data-figure-x="t + 5 * sin(t / 5) + 100" data-figure-y="(t / 10) ^ 2 + 40 * sin(t / 10) + 50"
+                data-mirror-x="(r + 0.001) * cos(((t + 255) / (255 * 2)) * τ)" data-mirror-y="(r + 0.001) * sin(((t + 255) / (255 * 2)) * τ)"
+                data-sigma="-s" data-tau="t"
+            ></canvas>
+
+            Although the <span class="reflection">reflection</span> looks nothing alike when the
+            <span class="mirror">circle</span>'s radius is large, the closer it gets to zero, the
+            more it starts to resemble our point reflection. In the limit (intuitively, when the
+            radius is equal to zero), the reflection in the circle and the reflection in the point
+            coïncide.
+            <br>
+            Thus, our notion of nonlinear reflection generalises both linear reflections and point
+            reflections! By asking a couple of simple questions, we've discovered a way to unify
+            two previously-distinct concepts.
+            <br>
+            Our progress so far has proven that it pays to keep asking questions, so there's only
+            one reasonable course of action...
+
+            <h2>One good turns deserves another</h2>
+
+            If you've come across point reflections before, you may already know this little fact,
+            but otherwise this can be surprising at first. Point reflections are a certain kind of
+            point <i>rotation</i>. We can rotate a shape around a point, mathematically, which works
+            just the same as turning around a point in real life. Here, we can see the same
+            <span class="figure">shape</span> and <span class="mirror">point</span> as before, but
+            this time we can rotate the <span class="figure">leaf</span> around the
+            <span class="mirror">point</span> instead.
+
+            <!-- Leaf point rotation -->
+            <canvas class="embed"
+                data-figure-x="t + 5 * sin(t / 5) + 100" data-figure-y="(t / 10) ^ 2 + 40 * sin(t / 10) + 50"
+                data-mirror-x="0.001 * cos(((t + 255) / (255 * 2)) * τ)" data-mirror-y="0.001 * sin(((t + 255) / (255 * 2)) * τ)"
+                data-sigma="s" data-tau="t + a"
+            ></canvas>
+
+            Notice how the <span class="reflection">rotation</span> matches the reflection from
+            before when the angle is 180°.
+            <br>
+            So, let's get this straight. <i>Nonlinear reflections</i> generalise point reflections
+            (by reflecting in a circle); and <i>point rotations</i> generalise point reflections (by
+            rotating 180°).
+            <br>
+            At this point, our next question is almost asking itself: <b>Is there a way to
+            generalise both nonlinear reflections and point rotations simultaneously?</b>
+            <br>
+            (If the first thought that comes to mind is: "Maybe there's some kind of nonlinear
+            rotation!", then you're thinking along the right track—but the truth is actually more
+            surprising, and subtle.)
+            <br>
+            The first thing we'll do is extend the rotation in the same way we extended the point
+            reflection initially: we'll try rotating around a circle instead of a point. This gives
+            us a better intuition for what's happening, as it's easier to imagine what "rotating
+            around a circle" means than "rotating around an arbitrary shape".
+
+            <!-- Leaf circle rotation -->
+            <canvas class="embed"
+                data-figure-x="t + 5 * sin(t / 5) + 100" data-figure-y="(t / 10) ^ 2 + 40 * sin(t / 10) + 50"
+                data-mirror-x="(r + 0.001) * cos(((t + 255) / (255 * 2)) * τ)" data-mirror-y="(r + 0.001) * sin(((t + 255) / (255 * 2)) * τ)"
+                data-sigma="-s" data-tau="t + a"
+            ></canvas>
+
+            <!-- give some intuition -->
+
+            <!-- translation -->
+
+            There's a type of reflection I haven't talked about yet, because it hasn't been
+            possible, up till now, to describe it generally. A <i>glide reflection</i> is a
+            combination of a reflection and a translation. A good example in real life are
+            footprints: one foot is (approximately) the mirror image of the other, and when you
+            walk, each step is offset from the previous one. For example, the following is a
+            <span class="reflection">glide reflection</span> of a
+            <span class="figure">parabola</span> in a <span class="mirror">straight line</span>.
+
+            <canvas class="embed"
+                data-figure-x="t" data-figure-y="(t / 10) ^ 2 + 30"
+                data-mirror-x="t" data-mirror-y="0"
+                data-sigma="-s" data-tau="t + x"
+            ></canvas>
+
+            Now that we've generalised both linear reflections and linear translations, defining a
+            nonlinear glide reflection becomes easy: it's a nonlinear reflection that has been
+            nonlinearly translated!
+            <br>
+            Remember our original nonlinear reflection, right back at the beginning? Here it is
+            again, but this time you can tweak its translation too. This is a
+            <span class="reflection">glide reflection</span> of a <span class="figure">line</span>
+            in a <span class="mirror">parabola</span>.
+
+            <canvas class="embed"
+                data-figure-x="t" data-figure-y="0"
+                data-mirror-x="t" data-mirror-y="(t / 10) ^ 2 - y"
+                data-sigma="-s" data-tau="t + x"
+            ></canvas>
+
+            <!-- mention commutativity -->
+
+            <!-- scaling -->
+
+            <h2>Scaling up</h2>
+
+            We're nearing a close, but before we do, there's one last observation I want to explore
+            with you. We saw already that point reflections were special kinds of point rotations.
+            However, they're also a special case of <i>another</i> transformation: scaling. We can
+            scale a figure through an <span class="mirror">origin point</span> by making every point
+            in the figure further away, or closer to, the origin point.
+            <br>
+            When we scale by 1&times;, we get the original <span class="figure">figure shape</span>
+            back. When we scale by -1&times;, we get the reflection of the figure. If we scale by
+            0&times;, we just get the origin point back.
+
+            <!-- Leaf point scaling -->
+            <canvas class="embed"
+                data-figure-x="t + 5 * sin(t / 5) + 100" data-figure-y="(t / 10) ^ 2 + 40 * sin(t / 10) + 50"
+                data-mirror-x="0.001 * cos(((t + 255) / (255 * 2)) * τ)" data-mirror-y="0.001 * sin(((t + 255) / (255 * 2)) * τ)"
+                data-sigma="s * (f / 255 * 4)" data-tau="t"
+            ></canvas>
+
+            <!-- intuition about distance while cursoring -->
+
+            Of course, this fits naturally into our framework for nonlinear reflections and
+            translations. Now, instead of nonlinear reflections, we have nonlinear scaling (<i>
+            scaling through a curve</i>), of which nonlinear reflections are a special case.
+            <br>
+            Here's our <span class="figure">line</span> scaled through a
+            <span class="mirror">parabola</span>.
+
+            <canvas class="embed"
+                data-figure-x="t" data-figure-y="0"
+                data-mirror-x="t" data-mirror-y="(t / 10) ^ 2"
+                data-sigma="-s * (f / 255 * 4)" data-tau="t"
+            ></canvas>
+
+            <!-- more here -->
+
+            <h2>Drawing to a conclusion</h2>
+
+            <!-- blah blah -->
+
+            There are more questions to ask, but for these at least, I do not yet have all the
+            answers. Perhaps you will be inspired to try answering them for yourself, or to come up
+            with questions of your own. For example:
+
+            <!-- phrasing -->
+
+            <ul>
+                <li>What happens if we consider normals that are not linear?</li>
+                <!-- light analogy-->
+                <li>What do nonlinear reflections look like in higher dimensions?</li>
+                <li>Is there anything these nonlinear reflections are good for?</li>
+            </ul>
+
+            <!--<h2>Linear reflections</h2>
+
+            <p>Here, we see a <span class="figure">parabola</span> reflected in a <span class="mirror">horizontal line</span>. As we expect, the reflection is a <span class="reflection">parabola</span> too. This property is true of all linear reflections, which are known as <span class="definition">isometric transformations</span>: meaning that they preserve shapes.</p>
+
+            <aside>Pan the view by dragging. Zoom in/out by holding <kbd>Shift</kbd> and scrolling. Double-click to reset the view.</aside>
+
+            <canvas class="embed"
+                data-figure-x="t" data-figure-y="(t / 10) ^ 2 - y"
+                data-mirror-x="t" data-mirror-y="0"
+            ></canvas>
+
+            Notice that, by hovering over any one of the curves, you can see two points corresponding to the one you've hovering over. Each triple of points corresponds to the <span class="figure">point in the figure</span> being reflected; the <span class="mirror">point in the mirror</span> in which it is reflected; and the <span class="reflection">reflected point</span>. These three points are always equidistant.
+
+            <canvas class="embed"
+                data-figure-x="t" data-figure-y="(t / 10) ^ 2"
+                data-mirror-x="t" data-mirror-y="y + t"
+            ></canvas>
+
+            <h2>Nonlinear reflections</h2>
+
+            <canvas class="embed"
+                data-figure-x="t" data-figure-y="x"
+                data-mirror-x="t" data-mirror-y="(t / 10) ^ 2"
+            ></canvas>
+
+            <h2>Point reflections</h2>
+
+            <h2>Nonlinear translations</h2>
+
+            <h2>Glide reflections</h2>
+
+            <h2>Nonlinear scaling</h2>
+        </section>
+
+
+        <hr>
+
+
+        <canvas class="embed"
+            data-figure-x="t" data-figure-y="((c/40)*t/5)^2+a*2"
+            data-mirror-x="t" data-mirror-y="(t/10)^2"
+            data-sigma="-s*x/10" data-tau="t+z"
+        ></canvas>
+
+        <canvas class="embed"
+            data-figure-x="cos(t / 20) * 50 + a * 1.5" data-figure-y="sin(t / 20) * 50 + 50"
+            data-mirror-x="t" data-mirror-y="20 * sin(t / 20)"
+        ></canvas>
+
+        <canvas class="embed"
+            data-figure-x="20 * cos(t / 20)" data-figure-y="10 * sin(t / 10)"
+            data-mirror-x="a * cos(t / 20)" data-mirror-y="b * sin(t / 10)"
+        ></canvas>
+
+        <canvas class="embed"
+            data-figure-x="t" data-figure-y="(t / 10) ^ 2"
+            data-mirror-x="a * cos(t / 20)" data-mirror-y="a * sin(t / 20)"
+        ></canvas>
+
+        <canvas class="embed"
+            data-figure-x="t + x" data-figure-y="(t / 10) ^ 2 + y"
+            data-mirror-x="a * cos(((t + 255) / (255 * 2)) * τ)" data-mirror-y="a * sin(((t + 255) / (255 * 2)) * τ)"
+        ></canvas>
+
+        <canvas class="embed"
+            data-figure-x="t" data-figure-y="a * sin(((t + 255) / (255 * 2)) * 4 * τ)"
+            data-mirror-x="t - b" data-mirror-y="a * sin(((t + 255) / (255 * 2)) * 4 * τ) - y"
+            data-sigma="-s" data-tau="t"
+        ></canvas>
+
+        <canvas class="embed"
+            data-figure-x="a * cos(((t + 255) / (255 * 2)) * τ) - x" data-figure-y="a * sin(((t + 255) / (255 * 2)) * τ) - y"
+            data-mirror-x="a * cos(((t + 255) / (255 * 2)) * τ)" data-mirror-y="a * sin(((t + 255) / (255 * 2)) * τ)"
+            data-sigma="-s" data-tau="t"
+        ></canvas>
+
+        <!-- Point reflections -->
+    </article>
+</body>
+</html>

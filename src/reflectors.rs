@@ -80,7 +80,7 @@ impl ReflectionApproximator for RasterisationApproximator {
 
         reflection.into_iter().flat_map(|[x, y]| {
             &grid[x as usize + y as usize * cols]
-        }).cloned().map(|p| (p, Point2D::zero(), Point2D::zero())).collect()
+        }).cloned().map(|p| (p, Point2D::nan(), Point2D::nan())).collect()
     }
 }
 
@@ -267,7 +267,7 @@ impl ReflectionApproximator for LinearApproximator {
             });
         }
 
-        let zero = Point2D::zero();
+        let nan = Point2D::nan();
         reflection.into_iter()
             .map(|(index, points)| (reflection_lines[index].clone(), points))
             .flat_map(|(RTreeObjectWithData(fig, (_, (base, end))), points)| {
@@ -277,7 +277,7 @@ impl ReflectionApproximator for LinearApproximator {
                     let s = projection_on_edge(&fig, point);
                     let len = fig.length_2();
                     if s >= 0.0 && s <= len {
-                        Some((base + (end - base) * Point2D::diag(s / len), zero, zero))
+                        Some((base + (end - base) * Point2D::diag(s / len), nan, nan))
                     } else {
                         None
                     }

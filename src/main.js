@@ -43,8 +43,6 @@ document.addEventListener("DOMContentLoaded", () => {
         ["s_offset", "0"],
     ]);
 
-    const body = new Element(document.body);
-    const main = new Element("main");
     // There are two modes:
     // - Main:      the full Reflection Lab, in which the user has full control over the settings,
     //              such as equation input, variable sliders, etc.
@@ -52,6 +50,9 @@ document.addEventListener("DOMContentLoaded", () => {
     //              is still interactive, and variables may be changed using sliders, but all other
     //              UI is hidden.
     const embedded = window.location.pathname.split("/").pop() === "embed.html";
+
+    const body = new Element(document.body, embedded ? ["embedded"] : []);
+    const main = new Element("main");
 
     const [WIDTH, HEIGHT] = [640, 480];
     // The canvas on which the equations are drawn.
@@ -73,7 +74,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Pressing initiates a drag, allowing the user to pan the view.
-    canvas.listen("mousedown", event => {
+    canvas.listen("mousedown", (event) => {
         if (event.button === 0) {
             pointer = new Pointer(event, canvas_offset);
             drag_origin = new Pointer(event, canvas_offset);
@@ -81,27 +82,31 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Scrolling allows the user to zoom in or out.
-    canvas.listen("wheel", event => {
-        event.preventDefault();
-        // Scrolling is quite fast by default, so we want to slow it down.
-        const SCALE_DAMPING = 200;
-        const scale_next = view.scale - event.deltaY / SCALE_DAMPING;
-        if (pointer !== null) {
-            const [offset_x, offset_y] = [
-                pointer.x - canvas.width / 2,
-                pointer.y - canvas.height / 2,
-            ];
-            const scale_delta = 2 ** -view.scale - 2 ** -scale_next;
-            view.origin[0] += offset_x * scale_delta;
-            view.origin[1] -= offset_y * scale_delta;
+    canvas.listen("wheel", (event) => {
+        // We don't want to block scrolling if the canvas is embedded in a page (if it's not
+        // embedded, the page won't scroll anyway, so there's no need to require Shift to zoom).
+        if (!embedded || event.shiftKey) {
+            event.preventDefault();
+            // Scrolling is quite fast by default, so we want to slow it down.
+            const SCALE_DAMPING = 200;
+            const scale_next = view.scale - event.deltaY / SCALE_DAMPING;
+            if (pointer !== null) {
+                const [offset_x, offset_y] = [
+                    pointer.x - canvas.width / 2,
+                    pointer.y - canvas.height / 2,
+                ];
+                const scale_delta = 2 ** -view.scale - 2 ** -scale_next;
+                view.origin[0] += offset_x * scale_delta;
+                view.origin[1] -= offset_y * scale_delta;
+            }
+            view.scale = scale_next;
+            render(false);
         }
-        view.scale = scale_next;
-        render(false);
     }, { passive: false });
 
     // If the cursor moves, and a drag is in progress, we need to update the position of the view
     // to pan it.
-    window.addEventListener("mousemove", event => {
+    window.addEventListener("mousemove", (event) => {
         if (canvas_offset !== null) {
             let request = false;
             if (pointer !== null && drag_origin !== null) {
@@ -127,19 +132,29 @@ document.addEventListener("DOMContentLoaded", () => {
                     canvas.context.drawImage(buffer.element, 0, 0);
 
                     reflection.data.then((data) => {
+                        // We generally want to allow hovering over multiple points that are close
+                        // together, because the reflections might be in very different places.
+                        // However, if we make the hover radius too large, it starts getting messy.
+                        // `THRESHOLD` is the hover radius. However, if we don't find any in the
+                        // hover radius at first, we allow it to expand a little (otherwise the user
+                        // must be very precise in their hovering). Since no points were found in
+                        // the initial radius, this expansion shouldn't cause too many extra points
+                        // to be added.
+                        const THRESHOLD = 8;
+                        // How many `THRESHOLD`s we can expand before giving up (meaning the user
+                        // isn't hovering near any curve).
+                        const EXPAND = 1;
+
                         class ProximalPoints {
                             constructor() {
                                 this.points = [];
                                 this.distance = Infinity;
                             }
 
-                            add_point(pointer, [x, y], value) {
-                                // The maximum distance from the pointer in pixels to add a point.
-                                const THRESHOLD = 8;
-
+                            add_point(threshold, pointer, [x, y], value) {
                                 const distance =
                                     Math.hypot(x - pointer.x, y - (canvas.height - pointer.y));
-                                if (distance <= THRESHOLD) {
+                                if (distance <= threshold) {
                                     this.points.push(value);
                                     this.distance = Math.min(this.distance, distance);
                                 }
@@ -151,49 +166,62 @@ document.addEventListener("DOMContentLoaded", () => {
                         const mirror_prox = new ProximalPoints();
                         const prox = [reflection_prox, figure_prox, mirror_prox];
 
-                        const points = data.points.map((triple) => {
-                            return triple.map(p => Graph.adjust_point(view, p));
-                        });
+                        const points = data.points.filter(triple => {
+                            // The linear and rasterisation renderers currently do
+                            // not support displaying the corresponding triple on
+                            // hover. In these cases, they simply return NaN (which
+                            // is converted into `null` in the JSON) for unknown
+                            // points, so we skip such cases.
+                            return !triple.flat().some(x => x === null);
+                        })
+                            .map((triple) => triple.map(p => Graph.adjust_point(view, p)))
+                            .filter(x => x !== null);
 
-                        for (const point of points) {
-                            const [r, f, m] = point;
-                            reflection_prox.add_point(pointer, r, point);
-                            figure_prox.add_point(pointer, f, point);
-                            mirror_prox.add_point(pointer, m, point);
-                        }
-
-                        const closest = prox.reduce((prev, cur) => {
-                            return prev.distance <= cur.distance ? prev : cur;
-                        });
-
-                        if (closest.distance < Infinity) {
-                            const dpr = window.devicePixelRatio;
-                            const RADIUS = 6;
-
-                            const lines = new Path2D();
-                            const points = new Path2D();
-
-                            for (let [r, f, m] of closest.points) {
-                                lines.moveTo(f[0] * dpr, f[1] * dpr);
-                                lines.lineTo(r[0] * dpr, r[1] * dpr);
-
-                                [r, f, m].forEach((p) => {
-                                    points.moveTo(p[0] * dpr, p[1] * dpr);
-                                    points.arc(
-                                        p[0] * dpr,
-                                        p[1] * dpr,
-                                        RADIUS / 2 * dpr,
-                                        0,
-                                        2 * Math.PI,
-                                    );
-                                });
+                        for (
+                            let threshold = THRESHOLD; threshold <= THRESHOLD * EXPAND; ++threshold
+                        ) {
+                            for (const point of points) {
+                                const [r, f, m] = point;
+                                reflection_prox.add_point(threshold, pointer, r, point);
+                                figure_prox.add_point(threshold, pointer, f, point);
+                                mirror_prox.add_point(threshold, pointer, m, point);
                             }
 
-                            canvas.context.strokeStyle = "black";
-                            canvas.context.stroke(lines);
+                            const closest = prox.reduce((prev, cur) => {
+                                return prev.distance <= cur.distance ? prev : cur;
+                            });
 
-                            canvas.context.fillStyle = "black";
-                            canvas.context.fill(points);
+                            if (closest.distance < Infinity) {
+                                const dpr = window.devicePixelRatio;
+                                const RADIUS = 6;
+
+                                const lines = new Path2D();
+                                const points = new Path2D();
+
+                                for (let [r, f, m] of closest.points) {
+                                    lines.moveTo(f[0] * dpr, f[1] * dpr);
+                                    lines.lineTo(r[0] * dpr, r[1] * dpr);
+
+                                    [r, f, m].forEach((p) => {
+                                        points.moveTo(p[0] * dpr, p[1] * dpr);
+                                        points.arc(
+                                            p[0] * dpr,
+                                            p[1] * dpr,
+                                            RADIUS / 2 * dpr,
+                                            0,
+                                            2 * Math.PI,
+                                        );
+                                    });
+                                }
+
+                                canvas.context.strokeStyle = "hsla(0, 0%, 80%)";
+                                canvas.context.stroke(lines);
+
+                                canvas.context.fillStyle = "hsla(0, 0%, 50%)";
+                                canvas.context.fill(points);
+
+                                break;
+                            }
                         }
                     });
                 }
@@ -292,6 +320,14 @@ document.addEventListener("DOMContentLoaded", () => {
                     .filter(binding => present_vars.has(binding[0]))
                     .map(binding => [binding[0], binding[1].value]),
             }));
+            // Save the HTML embed code in the `window` so that it's easily accessible.
+            window.reflection = `
+                <canvas class="embed"
+                    data-figure-x="${figure_equation[0]}" data-figure-y="${figure_equation[1]}"
+                    data-mirror-x="${mirror_equation[0]}" data-mirror-y="${mirror_equation[1]}"
+                    data-sigma="${sigma_tau_equation[0]}" data-tau="${sigma_tau_equation[1]}"
+                ></canvas>
+            `.trim();
 
             if (!start) {
                 log_index = PerformanceLogger.start();

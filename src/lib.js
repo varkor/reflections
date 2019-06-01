@@ -217,6 +217,14 @@ class Option extends ValueElement {
     }
 }
 
+/// `<iframe>`
+class Iframe extends Element {
+    constructor(src, classes = []) {
+        super("iframe", classes);
+        this.element.src = src;
+    }
+}
+
 /// `<div>`
 class Button extends Input {
     constructor(text, classes = []) {
@@ -470,14 +478,14 @@ class PerformanceLogger {
             return Math.round(duration * rounding_factor) / rounding_factor;
         };
         const duration = performance.getEntriesByType("measure").reduce((duration, entry) => {
-            console.log(
+            console.info(
                 entry.name.replace(/-\d+$/, ""),
                 round(entry.duration),
                 `(${round(1000 / entry.duration)} fps)`,
             );
             return duration + entry.duration;
         }, 0);
-        console.log(`(${round(1000 / duration)} fps)`);
+        console.info(`(${round(1000 / duration)} fps)`);
 
         performance.clearMeasures();
     }

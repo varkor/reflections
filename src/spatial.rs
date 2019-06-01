@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
+use std::f64;
 use std::ops::{Add, Div, Mul, Sub};
 
 use num_traits::{sign::Signed, bounds::Bounded};
@@ -121,6 +122,10 @@ impl Point2D {
 
     pub fn one() -> Self {
         Self([1.0, 1.0])
+    }
+
+    pub fn nan() -> Self {
+        Self([f64::NAN, f64::NAN])
     }
 
     pub fn is_nan(&self) -> bool {

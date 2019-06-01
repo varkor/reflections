@@ -20,7 +20,12 @@ body {
 
 	background: hsl(0, 0%, 10%);
 
+	color: hsl(0, 0%, 20%);
 	font-family: "Helvetica Neue";
+}
+
+body.embedded {
+	overflow: hidden;
 }
 
 main {
@@ -29,11 +34,105 @@ main {
 	width: 100%; height: 100%;
 }
 
+article {
+	margin: 1em auto;
+	padding: 1em 4em;
+	max-width: 48em;
+	position: relative;
+	line-height: 150%;
+
+	background: hsl(0, 0%, 90%);
+	/* box-shadow: hsla(0, 0%, 0%, 0.6) 0 32px 0px 12px; */
+}
+
+@media (max-width: 48em) {
+	article {
+		margin: 0 auto;
+	}
+}
+
+br {
+	content: " ";
+
+	display: block;
+	margin: 0.8em 0;
+}
+
+h1 {
+	margin: 0;
+	position: absolute;
+	left: 0; top: 0;
+	width: 100%;
+	padding: 0.5em;
+
+	text-align: center;
+
+	background: hsl(0, 0%, 80%);
+	color: hsl(0, 0%, 10%);
+	font: 300 22pt "Helvetica Neue";
+}
+
+h1 + section {
+	margin-top: 5em;
+}
+
+iframe {
+	width: 640px; height: 480px;
+	margin: 1em auto;
+	/* transform: translateX(-50%); */
+
+	border: none;
+	border-radius: 4px;
+}
+
+canvas.embed {
+	display: none;
+}
+
 /* We centre the canvas when it is not embedded. */
 header ~ main canvas {
-	left: 50%;
 	position: relative;
+	left: 50%;
 	transform: translateX(-50%);
+}
+
+aside {
+	margin-bottom: 0.5em;
+	padding: 4pt 8pt;
+
+	background: hsl(0, 0%, 75%);
+	color: black;
+	border-radius: 4px;
+}
+
+kbd {
+	padding: 2pt 4pt;
+
+	background: hsl(0, 0%, 90%);
+	border-radius: 4px;
+}
+
+span.figure, span.mirror, span.reflection {
+	padding: 1pt 4pt;
+
+	background: hsl(0, 0%, 100%);
+	border-radius: 4px;
+}
+
+span.figure {
+	color: var(--figure-colour);
+}
+
+span.mirror {
+	color: var(--mirror-colour);
+}
+
+span.reflection {
+	color: var(--reflection-colour);
+}
+
+span.definition {
+	font-style: italic;
 }
 
 button {
@@ -117,6 +216,7 @@ header {
 
 	background: hsl(var(--ui-hue), 100%, 50%);
 
+	color: hsl(0, 0%, 10%);
 	font: 300 16pt "Helvetica Neue";
 }
 
@@ -233,6 +333,7 @@ input[type=range]::-webkit-slider-thumb {
 
 	-webkit-appearance: none;
 	background: hsl(var(--ui-hue), 100%, 35%);
+	border: none;
 	border-radius: 100%;
 	box-shadow: hsla(0, 0%, 0%, 0.1) 0 2px 2px;
 }
@@ -242,6 +343,31 @@ input.key::-webkit-slider-runnable-track {
 }
 
 input[type=range].key::-webkit-slider-thumb {
+	background: hsl(var(--ui-secondary-hue), 100%, 50%);
+}
+
+input::-moz-range-track {
+	height: 1em;
+
+	background: hsl(var(--ui-hue), 100%, 50%);
+	border-radius: 1em;
+}
+
+input[type=range]::-moz-range-thumb {
+	width: 1.5em; height: 1.5em;
+	margin-top: -0.25em;
+
+	background: hsl(var(--ui-hue), 100%, 35%);
+	border: none;
+	border-radius: 100%;
+	box-shadow: hsla(0, 0%, 0%, 0.1) 0 2px 2px;
+}
+
+input.key::-moz-range-track {
+	background: hsl(var(--ui-secondary-hue), 100%, 65%);
+}
+
+input[type=range].key::-moz-range-thumb {
 	background: hsl(var(--ui-secondary-hue), 100%, 50%);
 }
 
