@@ -209,6 +209,14 @@ class Option extends ValueElement {
     }
 }
 
+/// `<div>`
+class Button extends Input {
+    constructor(text, classes = []) {
+        super("button", classes);
+        this.value = text;
+    }
+}
+
 /// A region of space to be displayed or computed over.
 ///
 /// The class `View` mirrors the Rust struct `View` and should be kept in sync.

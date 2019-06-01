@@ -379,6 +379,20 @@ document.addEventListener("DOMContentLoaded", () => {
             [self.components[0].value, self.components[1].value] = sigma_tau_equation;
         });
 
+    new Button("Figure ⇄ Mirror").listen("click", () => {
+        // Swap the figure and mirror equations.
+        [
+            [figure.components[0].value, figure.components[1].value],
+            [mirror.components[0].value, mirror.components[1].value],
+        ] = [
+            [mirror.components[0].value, mirror.components[1].value],
+            [figure.components[0].value, figure.components[1].value],
+        ];
+        for (const input of [figure, mirror].map(eq => eq.components).flat()) {
+            input.element.dispatchEvent(new Event("input"));
+        }
+    }).append_to(equation_container);
+
     const var_container = new Div(["variables"]).append_to(new Div(
         embedded ? ["overlay"] : []
     ).append_to(

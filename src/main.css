@@ -89,6 +89,25 @@ input[type="text"].mirror:focus::selection {
 	background: hsl(var(--mirror-hue), 100%, 30%);
 }
 
+input[type="button"] {
+	margin-left: 14pt;
+
+	background: hsl(0, 0%, 60%);
+	border: none;
+	border-radius: 4px;
+	outline: none;
+
+	font: 300 10pt "Helvetica Neue";
+}
+
+input[type="button"]:hover {
+	background: hsl(0, 0%, 70%);
+}
+
+input[type="button"]:active {
+	background: hsl(0, 0%, 50%);
+}
+
 .hidden {
 	display: none !important;
 }
