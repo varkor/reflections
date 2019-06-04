@@ -478,7 +478,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 slider.class_list.add("key");
             }
             const container = new Div(["variable"])
-                .append(new Element("span").add_text(`${v} = `).append(value_text))
+                .append(new Element("span")
+                    .append(new Div(["name"]).add_text(`${v}`))
+                    .add_text(" = ")
+                    .append(value_text))
                 .append(slider);
             return container;
         }

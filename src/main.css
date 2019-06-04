@@ -346,6 +346,11 @@ label:first-child {
 	text-align: right;
 }
 
+.name {
+	display: inline-block;
+	min-width: 12pt;
+}
+
 .dev-options {
 	float: right;
 
