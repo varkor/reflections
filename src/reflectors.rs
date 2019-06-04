@@ -5,6 +5,9 @@ use rstar::{primitives::Line, PointDistance, RTree};
 use crate::approximation::{Equation, Interval, View};
 use crate::spatial::{Pair, Point2D, Quad, RTreeObjectWithData};
 
+/// (reflection, figure, mirror_figure, mirror_reflection)
+pub type ReflectionPoint = (Point2D, Point2D, Point2D, Point2D);
+
 /// A `ReflectionApproximator` provides a method to approximate points lying along the reflection
 /// of a `figure` equation in a `mirror` equation.
 pub trait ReflectionApproximator {
@@ -16,7 +19,7 @@ pub trait ReflectionApproximator {
         sigma_tau: &Equation<'_, (f64, f64)>,
         interval: &Interval,
         view: &View,
-    ) -> Vec<(Point2D, Point2D, Point2D)>;
+    ) -> Vec<ReflectionPoint>;
 }
 
 /// Find the distance of a point projected along an edge.
@@ -40,7 +43,7 @@ impl ReflectionApproximator for RasterisationApproximator {
         sigma_tau: &Equation<'_, (f64, f64)>,
         interval: &Interval,
         view: &View,
-    ) -> Vec<(Point2D, Point2D, Point2D)> {
+    ) -> Vec<ReflectionPoint> {
         // Calculate the number of cells we need horizontally and vertically. Round up if the view
         // size isn't perfectly divisible by the cell size.
         let [cols, rows] = [
@@ -80,7 +83,7 @@ impl ReflectionApproximator for RasterisationApproximator {
 
         reflection.into_iter().flat_map(|[x, y]| {
             &grid[x as usize + y as usize * cols]
-        }).cloned().map(|p| (p, Point2D::nan(), Point2D::nan())).collect()
+        }).cloned().map(|p| (p, Point2D::nan(), Point2D::nan(), Point2D::nan())).collect()
     }
 }
 
@@ -94,15 +97,17 @@ impl ReflectionApproximator for QuadraticApproximator {
         sigma_tau: &Equation<'_, (f64, f64)>,
         interval: &Interval,
         _: &View,
-    ) -> Vec<(Point2D, Point2D, Point2D)> {
+    ) -> Vec<ReflectionPoint> {
         /// A triple corresponding to a point and its reflection, as well as the point in which it
         /// was reflected.
         #[derive(Clone, Copy)]
         struct Reflection {
             /// `point` is a point in space (one to be reflected).
             point: Point2D,
-            /// `surface` is the point along the mirror surface in which `point` is reflected.
-            surface: Point2D,
+            /// `surface_point` is the point along the mirror surface in which `point` is reflected.
+            surface_point: Point2D,
+            /// `surface_image` is the point along the mirror surface in which `image` is reflected.
+            surface_image: Point2D,
             /// `image` is the reflection of the `point` in the `surface`.
             image: Point2D,
         }
@@ -110,7 +115,7 @@ impl ReflectionApproximator for QuadraticApproximator {
         // Sample points in (t, s) space.
         let samples: Vec<_> = interval.clone().map(|t| {
             let normal = mirror.normal(t);
-            let surface = (normal.function)(0.0);
+            let surface_point = (normal.function)(0.0);
             let endpoint_interval = Interval::endpoints(interval.start, interval.end);
 
             endpoint_interval.filter_map(|s| {
@@ -118,6 +123,7 @@ impl ReflectionApproximator for QuadraticApproximator {
 
                 if !point.is_nan() {
                     let [scale, translate] = (sigma_tau.function)((s, t)).into_inner();
+                    let surface_image = (mirror.normal(translate).function)(0.0);
                     // In some cases, we can use cached computations to calculate the reflections.
                     let image = match (scale == s, translate == t) {
                         (true, true) => point,
@@ -127,7 +133,7 @@ impl ReflectionApproximator for QuadraticApproximator {
                     if !image.is_nan() {
                         // The point `point` is reflected in the mirror at the point `surface`
                         // to the point `image`.
-                        return Some(Reflection { point, surface, image });
+                        return Some(Reflection { point, surface_point, surface_image, image });
                     }
                 }
 
@@ -199,7 +205,8 @@ impl ReflectionApproximator for QuadraticApproximator {
                     (
                         weight(a.image, b.image, c.image, d.image),
                         weight(quad.points[0], quad.points[1], quad.points[2], quad.points[3]),
-                        weight(a.surface, b.surface, c.surface, d.surface),
+                        weight(a.surface_point, b.surface_point, c.surface_point, d.surface_point),
+                        weight(a.surface_image, b.surface_image, c.surface_image, d.surface_image),
                     )
                 }).collect::<Vec<_>>()
             })
@@ -219,7 +226,7 @@ impl ReflectionApproximator for LinearApproximator {
         sigma_tau: &Equation<'_, (f64, f64)>,
         interval: &Interval,
         _view: &View,
-    ) -> Vec<(Point2D, Point2D, Point2D)> {
+    ) -> Vec<ReflectionPoint> {
         // A collection of lines with (point, image) data at each point, used for
         // image interpolation.
         let mut reflection_lines = vec![];
@@ -277,7 +284,7 @@ impl ReflectionApproximator for LinearApproximator {
                     let s = projection_on_edge(&fig, point);
                     let len = fig.length_2();
                     if s >= 0.0 && s <= len {
-                        Some((base + (end - base) * Point2D::diag(s / len), nan, nan))
+                        Some((base + (end - base) * Point2D::diag(s / len), nan, nan, nan))
                     } else {
                         None
                     }

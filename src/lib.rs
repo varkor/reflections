@@ -24,7 +24,7 @@ use crate::approximation::Equation;
 use crate::approximation::{Interval, View};
 use crate::parser::{Lexer, Parser};
 use crate::reflectors::{RasterisationApproximator, LinearApproximator, QuadraticApproximator};
-use crate::reflectors::ReflectionApproximator;
+use crate::reflectors::{ReflectionApproximator, ReflectionPoint};
 use crate::spatial::Point2D;
 
 // It's helpful to be able to log error messages to the JavaScript console, so we export some
@@ -112,7 +112,7 @@ pub extern fn render_reflection(
     struct RenderReflectionData {
         mirror: Vec<Point2D>,
         figure: Vec<Point2D>,
-        reflection: Vec<(Point2D, Point2D, Point2D)>,
+        reflection: Vec<ReflectionPoint>,
     }
 
     // An empty string represents an error to the JavaScript client.

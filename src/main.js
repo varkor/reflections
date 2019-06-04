@@ -163,8 +163,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
                         const reflection_prox = new ProximalPoints();
                         const figure_prox = new ProximalPoints();
-                        const mirror_prox = new ProximalPoints();
-                        const prox = [reflection_prox, figure_prox, mirror_prox];
+                        const mirror_figure_prox = new ProximalPoints();
+                        const mirror_reflection_prox = new ProximalPoints();
+                        const prox = [reflection_prox, figure_prox, mirror_figure_prox, mirror_reflection_prox];
 
                         const points = data.points.filter(triple => {
                             // The linear and rasterisation renderers currently do
@@ -181,10 +182,11 @@ document.addEventListener("DOMContentLoaded", () => {
                             let threshold = THRESHOLD; threshold <= THRESHOLD * EXPAND; ++threshold
                         ) {
                             for (const point of points) {
-                                const [r, f, m] = point;
+                                const [r, f, m_f, m_r] = point;
                                 reflection_prox.add_point(threshold, pointer, r, point);
                                 figure_prox.add_point(threshold, pointer, f, point);
-                                mirror_prox.add_point(threshold, pointer, m, point);
+                                mirror_figure_prox.add_point(threshold, pointer, m_f, point);
+                                mirror_reflection_prox.add_point(threshold, pointer, m_r, point);
                             }
 
                             const closest = prox.reduce((prev, cur) => {
@@ -198,11 +200,13 @@ document.addEventListener("DOMContentLoaded", () => {
                                 const lines = new Path2D();
                                 const points = new Path2D();
 
-                                for (let [r, f, m] of closest.points) {
+                                for (let [r, f, m_f, m_r] of closest.points) {
                                     lines.moveTo(f[0] * dpr, f[1] * dpr);
+                                    lines.lineTo(m_f[0] * dpr, m_f[1] * dpr);
+                                    lines.moveTo(m_r[0] * dpr, m_r[1] * dpr);
                                     lines.lineTo(r[0] * dpr, r[1] * dpr);
 
-                                    [r, f, m].forEach((p) => {
+                                    [r, f, m_f, m_r].forEach((p) => {
                                         points.moveTo(p[0] * dpr, p[1] * dpr);
                                         points.arc(
                                             p[0] * dpr,
