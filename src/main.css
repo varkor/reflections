@@ -115,6 +115,28 @@ header ~ main canvas {
 	transform: translateX(-50%);
 }
 
+footer {
+	margin-top: 2em;
+	padding-top: 1em;
+
+	border-top: hsl(0, 0%, 60%) 2px solid;
+}
+
+a[rel=author] {
+	display: inline-block;
+	width: 100%;
+
+	font-style: italic;
+	font-size: 16pt;
+	text-decoration: none;
+	text-align: right;
+	color: hsl(0, 0%, 10%);
+}
+
+a[rel=author]::before {
+	content: "—";
+}
+
 aside {
 	margin-bottom: 0.5em;
 	padding: 4pt 8pt;

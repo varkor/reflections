@@ -21,6 +21,7 @@
         <!-- add an option to treat r=0 as r=epsilon -->
         <!-- could draw curves instead of straight lines for rotations -->
         <!-- make variable name fixed width -->
+        <!-- have an option to disable hovering -->
 
         <section>
             <noscript>
@@ -357,8 +358,35 @@
                 <li>What happens if we consider normals that are not linear?</li>
                 <!-- light analogy-->
                 <li>What do nonlinear reflections look like in higher dimensions?</li>
+                <li>How can we extend our understanding of symmetry?</li>
                 <li>Is there anything these nonlinear reflections are good for?</li>
             </ul>
+
+            <footer>
+                <h3>Final remarks</h3>
+                If you're interested in how the reflections explorations work, you can check out the
+                <a href="https://github.com/varkor/reflections">source code on GitHub</a>. It's
+                written in <a href="https://www.rust-lang.org">Rust</a>, compiled to WebAssembly,
+                and makes use of the excellent
+                <a href="https://github.com/Stoeoef/rstar">R*-tree package</a> by
+                <a href="https://github.com/Stoeoef">@Stoeoef</a>.
+                <br>
+                Approximating these reflections efficiently is an interesting algorithmic problem.
+                I tried
+                <a href="https://github.com/varkor/reflections/blob/master/src/reflectors.rs">
+                several variants</a> before settling on the one used in this article.
+                If anyone has ideas about how to speed them up or improve their precision, I'd
+                welcome comments on the
+                <a href="https://github.com/varkor/reflections">repository</a>.
+                <br>
+                <a href="https://varkor.github.io/" rel="author">varkor</a>
+            </footer>
+
+            <!-- can experiment in lab -->
+
+            <!-- include some simple maths -->
+
+            <!-- appendix -->
 
             <!--<h2>Linear reflections</h2>
 
