@@ -24,7 +24,17 @@ document.addEventListener("DOMContentLoaded", () => {
         bindings,
     } = saved_settings;
     let reflection = null;
-    bindings = new Map(bindings);
+    bindings = new Map(bindings.map(([name, value]) => {
+        value = parseFloat(value);
+        if (Number.isNaN(value)) {
+            // If an invalid value is bound, default to `0`.
+            value = 0;
+        }
+        // Clamp to the valid range. We don't really care
+        // whether the `value` is a multiple of `step`.
+        value = Math.max(-256, Math.min(256, value));
+        return [name, new Binding(value, -256, 256, 1)];
+    }));
 
     const settings = new Map([
         ["threshold", "4"],
@@ -269,14 +279,18 @@ document.addEventListener("DOMContentLoaded", () => {
             // we allow them to be scaled in the range [0, 1).
             const [t_offset, s_offset] = [settings.get("t_offset"), settings.get("s_offset")];
             const bindings_new = new Map(bindings);
-            bindings_new.set("t", `t - ${t_offset}`);
-            bindings_new.set("s", `s - ${s_offset}`);
+            // `t` and `s` are treated specially: their "current value" is actually
+            // the offset we apply when we range over their domain.
+            bindings_new.set("t", new Binding(parseFloat(t_offset), -256, 256, 1));
+            bindings_new.set("s", new Binding(parseFloat(s_offset), -256, 256, 1));
             const present_vars = extract_variables();
             location.hash = encodeURIComponent(JSON.stringify({
                 mirror: mirror_equation,
                 figure: figure_equation,
                 sigma_tau: sigma_tau_equation,
-                bindings: Array.from(bindings).filter(binding => present_vars.has(binding[0])),
+                bindings: Array.from(bindings)
+                    .filter(binding => present_vars.has(binding[0]))
+                    .map(binding => [binding[0], binding[1].value]),
             }));
 
             if (!start) {
@@ -408,19 +422,13 @@ document.addEventListener("DOMContentLoaded", () => {
     function extract_variables() {
         /// Add a new variable value slider.
         function add_var_slider(v) {
-            const value = bindings.get(v);
-            const value_text = new Div(["value"]).add_text(value);
-            // For now, we have a default range for each value, where `scaling` is given a special
-            // range. In the future, we'll allow each variable to have a custom range.
-            let [min, max, step] = [-255, 255, 1];
-            switch (v) {
-                case SPECIAL_VARIABLES.get("scaling"):
-                    [min, max, step] = [-2, 2, 0.1];
-                    break;
-            }
+            const variable = bindings.get(v);
+            const value_text = new Div(["value"]).add_text(variable.value);
             // Create the variable value slider itself.
-            const slider = new RangeSlider(min, value, max, step).listen("input", (_, self) => {
-                bindings.set(v, self.value);
+            const slider = new RangeSlider(
+                variable.min, variable.value, variable.max, variable.step,
+            ).listen("input", (_, self) => {
+                bindings.get(v).value = parseFloat(self.value);
                 value_text.element.childNodes[0].nodeValue = self.value;
                 render(true);
             }).for_which(self => var_map.set(v, self));
@@ -463,21 +471,22 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (!var_map.has(v)) {
                     // We may already have a binding from the settings.
                     if (!bindings.has(v)) {
-                        // The default value is usually 0, but for `scaling`, -1 is a good choice
-                        // because we generally want to reflect.
-                        let def = 0;
                         switch (v) {
                             case SPECIAL_VARIABLES.get("scaling"):
-                                def = -1;
+                                // `-1` is a good default setting for `scaling`, as we generally
+                                // want to reflect.
+                                bindings.set(v, new Binding(-1, -2, 2, -1));
+                                break;
+                            default:
+                                bindings.set(v, new Binding(0, -256, 256, 1));
                                 break;
                         }
-                        bindings.set(v, `${def}`);
                     }
                     const var_slider = add_var_slider(v);
                     if (prev_var !== null) {
                         var_slider.follow(prev_var);
                     } else {
-                        var_slider.append_to(var_container);
+                        var_slider.prepend_to(var_container);
                     }
                     var_map.set(v, var_slider);
                 } else {

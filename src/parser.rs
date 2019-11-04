@@ -580,11 +580,16 @@ enum ExprSuffix {
 
 impl Expr {
     /// Evaluate a numeric expression, given a set of variable bindings.
-    pub fn evaluate(&self, bindings: &HashMap<char, f64>) -> f64 {
+    /// The two `bindings` correspond to those bindings that are constant, versus those that
+    /// change frequently. From the perspective of `evaluate`, there's not a difference, but
+    /// it avoids unnecessary `clone`s or implementing a delta `HashMap`.
+    pub fn evaluate(&self, bindings: (&HashMap<char, f64>, &HashMap<char, f64>)) -> f64 {
         match self {
             &Expr::Number(x) => x,
             Expr::Var(v) => {
-                if let Some(&x) = bindings.get(&v.chars().next().unwrap()) {
+                assert_eq!(v.len(), 1);
+                let name = v.chars().next().unwrap();
+                if let Some(&x) = bindings.0.get(&name).or(bindings.1.get(&name)) {
                     x
                 } else {
                     panic!("no binding for {}", v);

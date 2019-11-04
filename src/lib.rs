@@ -1,6 +1,5 @@
 #![feature(bind_by_move_pattern_guards)]
 #![feature(box_syntax)]
-#![feature(euclidean_division)]
 #![feature(try_trait)]
 
 #![deny(bare_trait_objects)]
@@ -45,6 +44,7 @@ macro_rules! console_log {
 /// Construct a parametric equation given the strings corresponding to `x(t)` and `y(t)`.
 fn construct_equation<'a, I>(
     string: [&str; 2],
+    static_bindings: &'a HashMap<char, f64>,
     set_bindings: impl 'a + Fn(&mut HashMap<char, f64>, I),
 ) -> Result<Equation<'a, I>, ()> {
     /// Convert a string into an expression, which can then be evaluated to create an equation.
@@ -63,9 +63,23 @@ fn construct_equation<'a, I>(
         function: box move |p| {
             let mut bindings = HashMap::new();
             set_bindings(&mut bindings, p);
-            Point2D::new([expr[0].evaluate(&bindings), expr[1].evaluate(&bindings)])
+            Point2D::new([
+                expr[0].evaluate((&bindings, static_bindings)),
+                expr[1].evaluate((&bindings, static_bindings)),
+            ])
         },
     })
+}
+
+/// A variable binding: a name and value, along with the range of values the variable can take.
+///
+/// The struct `Binding` mirrors the JavaScript class `Binding` and should be kept in sync.
+#[derive(Clone, Debug, Deserialize)]
+struct Binding {
+    value: f64,
+    min: f64,
+    max: f64,
+    step: f64,
 }
 
 /// Set up the Rust WASM environment. Responsible primarily for setting up the error handlers.
@@ -87,6 +101,7 @@ pub extern fn render_reflection(
         mirror: [&'a str; 2],
         figure: [&'a str; 2],
         sigma_tau: [&'a str; 2],
+        bindings: HashMap<&'a str, Binding>,
         method: &'a str,
         threshold: f64,
     }
@@ -104,21 +119,39 @@ pub extern fn render_reflection(
     let error_output = String::new();
 
     if let Ok(data) = serde_json::from_str::<RenderReflectionArgs>(&json) {
+        // `t` and `s` are inherently special-cased. We use their values as offset parameters.
+        let (s_offset, t_offset) = (data.bindings["s"].value, data.bindings["t"].value);
+        let bindings: HashMap<char, f64> = data.bindings.iter().filter_map(|(name, binding)| {
+            match (name.len(), name) {
+                (_, &"s") | (_, &"t") => None,
+                (1, _) => name.chars().next().map(|c| (c, binding.value)),
+                _ => None,
+            }
+        }).collect();
+
         let (figure, mirror, sigma_tau) = match (
-            construct_equation(data.figure, |bindings, t| { bindings.insert('t', t); }),
-            construct_equation(data.mirror, |bindings, t| { bindings.insert('t', t); }),
-            construct_equation(data.sigma_tau, |bindings, (s, t)| {
-                bindings.insert('s', s);
+            construct_equation(data.figure, &bindings, |bindings, t| {
                 bindings.insert('t', t);
+            }),
+            construct_equation(data.mirror, &bindings, |bindings, t| {
+                bindings.insert('t', t);
+            }),
+            construct_equation(data.sigma_tau, &bindings, |bindings, (s, t)| {
+                bindings.insert('s', s - s_offset);
+                bindings.insert('t', t - t_offset);
             }),
         ) {
             (Ok(figure), Ok(mirror), Ok(sigma_tau)) => (figure, mirror, sigma_tau),
             _ => return error_output,
         };
 
-        // Currently we used a fix interval over which to sample `t`, but in the future this will
-        // be more flexible.
-        let interval = Interval { start: -256.0, end: 256.0, step: 1.0 };
+        // The interval over which to sample `t`.
+        // For now, we use the same interval for sampling `s`, to simplify the interface.
+        let interval = Interval {
+            start: data.bindings["t"].min,
+            end: data.bindings["t"].max,
+            step: data.bindings["t"].step,
+        };
 
         let reflection = match data.method.as_ref() {
             "rasterisation" => {

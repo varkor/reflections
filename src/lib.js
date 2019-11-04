@@ -6,14 +6,22 @@ class Element {
     }
 
     append(...children) {
-        for (const child of children) {
-            this.element.appendChild(child.element);
-        }
+        this.element.append(...children.map(child => child.element));
+        return this;
+    }
+
+    prepend(...children) {
+        this.element.prepend(...children.map(child => child.element));
         return this;
     }
 
     append_to(parent) {
         parent.append(this);
+        return this;
+    }
+
+    prepend_to(parent) {
+        parent.prepend(this);
         return this;
     }
 
@@ -313,6 +321,16 @@ const SPECIAL_VARIABLES = new Map([
     ["translation", "τ"],
 ]);
 
+/// The class `Binding` mirrors the Rust struct `Binding` and should be kept in sync.
+class Binding {
+    constructor(value, min, max, step) {
+        this.value = value;
+        this.min = min;
+        this.max = max;
+        this.step = step;
+    }
+}
+
 /// A `NonaffineReflection` represents the data corresponding to (primarily) a sampling of a
 /// reflection of an arbitrary parametric equation in another. All the hard work is actually done in
 /// Rust; this is a wrapper over the top of the WASM bindings.
@@ -322,11 +340,12 @@ class NonaffineReflection {
         /// The class `RenderReflectionArgs` mirrors the Rust struct `RenderReflectionArgs` and
         /// should be kept in sync.
         class RenderReflectionArgs {
-            constructor(view, mirror, figure, sigma_tau, method, threshold) {
+            constructor(view, mirror, figure, sigma_tau, bindings, method, threshold) {
                 this.view = view;
                 this.mirror = mirror;
                 this.figure = figure;
                 this.sigma_tau = sigma_tau;
+                this.bindings = bindings;
                 this.method = method;
                 this.threshold = threshold;
             }
@@ -345,9 +364,9 @@ class NonaffineReflection {
             }
         }
 
-        mirror = mirror.map(eq => new Equation(eq).substitute(bindings));
-        figure = figure.map(eq => new Equation(eq).substitute(bindings));
-        sigma_tau = sigma_tau.map(eq => new Equation(eq).substitute(bindings));
+        mirror = mirror.map(eq => new Equation(eq));
+        figure = figure.map(eq => new Equation(eq));
+        sigma_tau = sigma_tau.map(eq => new Equation(eq));
         this.log_index = log_index;
         this.data = new Promise((resolve, reject) => {
             const json = window.wasm_bindgen.render_reflection(JSON.stringify(
@@ -356,6 +375,7 @@ class NonaffineReflection {
                     mirror,
                     figure,
                     sigma_tau,
+                    Object.fromEntries(bindings.entries()),
                     settings.get("method"),
                     parseInt(settings.get("threshold")),
                 ),
@@ -394,13 +414,6 @@ class NonaffineReflection {
 class Equation {
     constructor(string) {
         this.string = string;
-    }
-
-    substitute(bindings) {
-        for (const [variable, value] of bindings) {
-            this.string = this.string.replace(new RegExp(`\\b${variable}\\b`, "g"), `(${value})`);
-        }
-        return this;
     }
 
     variables() {
