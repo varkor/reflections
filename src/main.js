@@ -358,24 +358,31 @@ document.addEventListener("DOMContentLoaded", () => {
             // we allow them to be scaled in the range [0, 1).
             const [t_offset, s_offset] = [settings.get("t_offset"), settings.get("s_offset")];
             const bindings_new = new Map(bindings);
+            const t_binding = bindings.has("t") ? bindings.get("t") :
+                new Binding(parseFloat(t_offset), -256, 256, 1);
+            const s_binding = bindings.has("s") ? bindings.get("s") :
+                new Binding(parseFloat(s_offset), -256, 256, 1);
             // `t` and `s` are treated specially: their "current value" is actually
             // the offset we apply when we range over their domain.
-            bindings_new.set("t", new Binding(parseFloat(t_offset), -256, 256, 1));
-            bindings_new.set("s", new Binding(parseFloat(s_offset), -256, 256, 1));
-            const present_vars = extract_variables();
-            location.hash = encodeURIComponent(JSON.stringify({
-                mirror: mirror_equation,
-                figure: figure_equation,
-                sigma_tau: sigma_tau_equation,
-                bindings: Array.from(bindings)
-                    .filter(binding => present_vars.has(binding[0]))
-                    .map(binding => [binding[0], {
-                        value: binding[1].value,
-                        min: binding[1].min,
-                        max: binding[1].max,
-                        step: binding[1].step,
-                    }]),
-            }));
+            console.log(t_binding);
+            bindings_new.set("t", t_binding);
+            bindings_new.set("s", s_binding);
+            if (!embedded) {
+                const present_vars = extract_variables();
+                location.hash = encodeURIComponent(JSON.stringify({
+                    mirror: mirror_equation,
+                    figure: figure_equation,
+                    sigma_tau: sigma_tau_equation,
+                    bindings: Array.from(bindings)
+                        .filter(binding => present_vars.has(binding[0]))
+                        .map(binding => [binding[0], {
+                            value: binding[1].value,
+                            min: binding[1].min,
+                            max: binding[1].max,
+                            step: binding[1].step,
+                        }]),
+                }));
+            }
             // Save the HTML embed code in the `window` so that it's easily accessible.
             window.reflection = `
                 <canvas class="embed"
