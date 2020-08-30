@@ -364,7 +364,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 new Binding(parseFloat(s_offset), -256, 256, 1);
             // `t` and `s` are treated specially: their "current value" is actually
             // the offset we apply when we range over their domain.
-            console.log(t_binding);
             bindings_new.set("t", t_binding);
             bindings_new.set("s", s_binding);
             if (!embedded) {

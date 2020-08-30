@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // The default bindings may be overwritten.
         const bindings = canvas.getAttribute("data-bindings");
         if (bindings !== null) {
-            settings.bindings = bindings.split(";").map((binding) => {
+            settings.bindings = bindings.replace(/\s+/g, "").split(";").map((binding) => {
                 const [name, value, min, max, step] = binding.split(",");
                 return [name, { value, min, max, step }];
             });
