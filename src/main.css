@@ -36,13 +36,14 @@ main {
 
 article {
 	margin: 1em auto;
+	/* Give some extra spacing for the avatar */
+	margin-bottom: 2em;
 	padding: 1em 4em;
 	max-width: 48em;
 	position: relative;
 	line-height: 150%;
 
 	background: hsl(0, 0%, 90%);
-	/* box-shadow: hsla(0, 0%, 0%, 0.6) 0 32px 0px 12px; */
 }
 
 @media (max-width: 48em) {
@@ -126,15 +127,30 @@ a[rel=author] {
 	display: inline-block;
 	width: 100%;
 
-	font-style: italic;
 	font-size: 16pt;
 	text-decoration: none;
 	text-align: right;
 	color: hsl(0, 0%, 10%);
 }
 
-a[rel=author]::before {
-	content: "—";
+.username {
+	display: inline-block;
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	transform: translate(-60px, -0.25em);
+}
+
+.avatar {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	transform: translate(25%, 25%);
+	width: 60px;
+	height: 60px;
+
+	border-radius: 50%;
+	box-shadow: white 0 0 0 2px;
 }
 
 aside {
@@ -257,8 +273,13 @@ header {
 
 	background: hsl(var(--ui-hue), 100%, 50%);
 
+	text-align: center;
 	color: hsl(0, 0%, 10%);
-	font: 300 16pt "Helvetica Neue";
+	font: 400 16pt "Helvetica Neue";
+
+	pointer-events: none;
+	-webkit-user-select: none;
+	-moz-user-select: none;
 }
 
 .parametric-equation {
