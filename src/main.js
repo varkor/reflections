@@ -259,6 +259,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // Clear the hover effect when the cursor leaves the canvas.
+    canvas.listen("mouseleave", () => canvas.context.drawImage(buffer.element, 0, 0));
+
     window.addEventListener("mouseleave", () => pointer = null);
 
     PerformanceLogger.mark(log_index, PERFORMANCE_MARKERS.DOM_CONTENT_LOAD);
