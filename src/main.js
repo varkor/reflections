@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
         mirror: ["t", "(t / 10) ^ 2"],
         figure: ["t", "x"],
         sigma_tau: ["-s", "t"],
-        bindings: [["x", "0"]],
+        bindings: [["x", { value: "0", min: "-256", max: "256", step: "1" }]],
         // Whether the view is locked (i.e. the user cannot pan or zoom). Particularly useful for
         // embedded canvases.
         locked: false,
@@ -28,16 +28,43 @@ document.addEventListener("DOMContentLoaded", () => {
         locked,
     } = saved_settings;
     let reflection = null;
-    bindings = new Map(bindings.map(([name, value]) => {
-        value = parseFloat(value);
-        if (Number.isNaN(value)) {
-            // If an invalid value is bound, default to `0`.
-            value = 0;
+    bindings = new Map(bindings.map(([name, data]) => {
+        let { value, min, max, step } = data;
+        [value, min, max, step] = [value, min, max, step].map(v => parseFloat(v));
+        if (Number.isNaN(min) && Number.isNaN(max) && Number.isNaN(step) && Number.isNaN(value)) {
+            // In this case, no values have been chosen, so we are free to make all choices
+            // sensibly.
+            [value, min, max, step] = [0, -256, 256, 1];
+        } else {
+            // Deal with partial invalid values. We make fairly arbitrary choices, under the
+            // assumption this is an unlikely event anyway.
+            if (Number.isNaN(min) && Number.isNaN(max)) {
+                [min, max] = [-256, 256];
+            } else if (Number.isNaN(min)) {
+                min = max;
+            } else if (Number.isNaN(max)) {
+                max = min;
+            }
+            const mid = (min + max) / 2;
+            if (min > max) {
+                min = max = mid;
+            }
+            if (Number.isNaN(value)) {
+                value = mid;
+            }
+            // Clamp to the valid range. We don't really care
+            // whether the `value` is a multiple of `step`.
+            value = Math.max(min, Math.min(max, value));
+            if (Number.isNaN(step) || step <= 0) {
+                step = (max - min) / 100;
+                if (step > 1) {
+                    // Avoid floating-point `step` where sensible.
+                    step = Math.round(step);
+                }
+            }
+            step = Math.min((max - min) / 2, step);
         }
-        // Clamp to the valid range. We don't really care
-        // whether the `value` is a multiple of `step`.
-        value = Math.max(-256, Math.min(256, value));
-        return [name, new Binding(value, -256, 256, 1)];
+        return [name, new Binding(value, min, max, step)];
     }));
 
     const settings = new Map([
@@ -342,7 +369,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 sigma_tau: sigma_tau_equation,
                 bindings: Array.from(bindings)
                     .filter(binding => present_vars.has(binding[0]))
-                    .map(binding => [binding[0], binding[1].value]),
+                    .map(binding => [binding[0], {
+                        value: binding[1].value,
+                        min: binding[1].min,
+                        max: binding[1].max,
+                        step: binding[1].step,
+                    }]),
             }));
             // Save the HTML embed code in the `window` so that it's easily accessible.
             window.reflection = `
