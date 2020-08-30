@@ -13,6 +13,9 @@ document.addEventListener("DOMContentLoaded", () => {
         figure: ["t", "x"],
         sigma_tau: ["-s", "t"],
         bindings: [["x", "0"]],
+        // Whether the view is locked (i.e. the user cannot pan or zoom). Particularly useful for
+        // embedded canvases.
+        locked: false,
     };
     try {
         Object.assign(saved_settings, JSON.parse(decodeURIComponent(location.hash.slice(1))));
@@ -22,6 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
         figure: figure_equation,
         sigma_tau: sigma_tau_equation,
         bindings,
+        locked,
     } = saved_settings;
     let reflection = null;
     bindings = new Map(bindings.map(([name, value]) => {
@@ -68,16 +72,22 @@ document.addEventListener("DOMContentLoaded", () => {
     let view = new View(canvas);
 
     // Double-clicking will reset the view.
-    canvas.listen("dblclick", () => {
-        view = new View(canvas);
-        render(false);
+    canvas.listen("dblclick", (event) => {
+        if (event.button === 0) {
+            if (!locked) {
+                view = new View(canvas);
+                render(false);
+            }
+        }
     });
 
     // Pressing initiates a drag, allowing the user to pan the view.
     canvas.listen("mousedown", (event) => {
         if (event.button === 0) {
-            pointer = new Pointer(event, canvas_offset);
-            drag_origin = new Pointer(event, canvas_offset);
+            if (!locked) {
+                pointer = new Pointer(event, canvas_offset);
+                drag_origin = new Pointer(event, canvas_offset);
+            }
         }
     });
 
@@ -85,7 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
     canvas.listen("wheel", (event) => {
         // We don't want to block scrolling if the canvas is embedded in a page (if it's not
         // embedded, the page won't scroll anyway, so there's no need to require Shift to zoom).
-        if (!embedded || event.shiftKey) {
+        if ((!embedded || event.shiftKey) && !locked) {
             event.preventDefault();
             // Scrolling is quite fast by default, so we want to slow it down.
             const SCALE_DAMPING = 200;
@@ -119,14 +129,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 render(false);
             } else {
                 // We're going to highlight the points closest to the pointer and their
-                // corresponding pair (i.e. figure, mirror, image). The user can hover over
-                // any of the three. However, in general, the user will be intending to hover
-                // over a particular curve. It's unhelpful if we highlight any points close to
-                // the pointer, as they could be unrelated. Therefore, we try to work out which
-                // of the three curves the user is hovering over and then highlight any points
-                // on *that* curve that are close to the pointer (even if there are points on the
-                // other curves that are actually closer). The curve with the point that is
-                // closest to the pointer is the one we choose.
+                // corresponding pair (i.e. figure, mirror, image). The user can hover over any of
+                // the three. However, in general, the user will be intending to hover over a
+                // particular curve. It's unhelpful if we highlight any points close to the pointer,
+                // as they could be unrelated. Therefore, we try to work out which of the three
+                // curves the user is hovering over and then highlight any points on *that* curve
+                // that are close to the pointer (even if there are points on the other curves that
+                // are actually closer). The curve with the point that is closest to the pointer is
+                // the one we choose.
                 if (reflection !== null) {
                     // Clear the previous hover effect.
                     canvas.context.drawImage(buffer.element, 0, 0);
@@ -165,7 +175,12 @@ document.addEventListener("DOMContentLoaded", () => {
                         const figure_prox = new ProximalPoints();
                         const mirror_figure_prox = new ProximalPoints();
                         const mirror_reflection_prox = new ProximalPoints();
-                        const prox = [reflection_prox, figure_prox, mirror_figure_prox, mirror_reflection_prox];
+                        const prox = [
+                            reflection_prox,
+                            figure_prox,
+                            mirror_figure_prox,
+                            mirror_reflection_prox,
+                        ];
 
                         const points = data.points.filter(triple => {
                             // The linear and rasterisation renderers currently do
@@ -236,8 +251,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // Stop a drag event.
     window.addEventListener("mouseup", event => {
         if (event.button === 0) {
-            if (pointer !== null) {
-                drag_origin = null;
+            if (!locked) {
+                if (pointer !== null) {
+                    drag_origin = null;
+                }
             }
         }
     });

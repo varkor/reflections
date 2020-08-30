@@ -11,6 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 canvas.getAttribute("data-sigma") || "-s",
                 canvas.getAttribute("data-tau") || "t",
             ],
+            locked: true,
             /* We use the default bindings settings. */
         };
         const iframe = new Iframe(`embed.html#${encodeURIComponent(JSON.stringify(settings))}`);
